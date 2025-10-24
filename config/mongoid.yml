@@ -292,7 +292,7 @@ test:
     default:
       database: tablecheck_ruby_take_home_test
       hosts:
-        - mongo:27017
+        - localhost:27017
       options:
         read:
           mode: :primary

@@ -74,7 +74,7 @@ jobs:
         run: |
           # wait for port to be open (gives the container time to initialize)
           for i in $(seq 1 60); do
-            if nc -z mongo 27017; then
+            if nc -z localhost 27017; then
               echo "Mongo is listening on 27017"
               break
             fi
@@ -84,7 +84,7 @@ jobs:
           # if mongosh is present in runner, try a health check; otherwise proceed
           if command -v mongosh >/dev/null 2>&1; then
             for i in $(seq 1 30); do
-              if mongosh --host mongo --eval 'db.adminCommand("ping")' >/dev/null 2>&1; then
+              if mongosh --host localhost --eval 'db.adminCommand("ping")' >/dev/null 2>&1; then
                 echo "Mongo responded to ping"
                 exit 0
               fi
