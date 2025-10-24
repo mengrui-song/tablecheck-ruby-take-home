@@ -27,7 +27,7 @@ namespace :products do
           product.save!
           puts "Created product: #{product.name}"
         rescue Mongoid::Errors::Validations => e
-          puts "Skipping invalid product: #{attrs[:name]} (#{e.message})"
+          puts "Skipping invalid product: #{attrs[:NAME]} (#{e.message})"
         end
       else
         puts "Product already exists, skipping: #{product.name}"
