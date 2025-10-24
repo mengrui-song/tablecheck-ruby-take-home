@@ -30,8 +30,14 @@ This repository contains a Ruby-based take-home exercise for TableCheck. The REA
 
 - docker compose up
 
+- import inventory csv
+  docker compose exec app rails products:import
+
 - Start a Rails console inside the running app container:
   docker compose exec app rails c
+
+- Rebuild the docker image
+  docker compose build app
 
 ## Running tests
 
