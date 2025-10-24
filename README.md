@@ -38,10 +38,10 @@ This repository contains a Ruby-based take-home exercise for TableCheck. The REA
 Common test commands:
 
 - RSpec:
-  bundle exec rspec
+  docker compose exec app bundle exec rspec
 
 - MiniTest / Rake:
-  bundle exec rake test
+  docker compose exec app bundle exec rake test
 
 If tests require the DB, make sure to prepare the test database:
 bundle exec rake db:test:prepare
