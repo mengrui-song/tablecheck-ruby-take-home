@@ -26,12 +26,16 @@ This repository contains a Ruby-based take-home exercise for TableCheck. The REA
    - If a `.env.example` exists, copy it to `.env` and fill in secrets:
      cp .env.example .env
 
+## Database
+
+
+
 ## Running the app
 
-- docker compose up
+- For Rails apps:
+  rails s
 
-- Start a Rails console inside the running app container:
-  docker compose exec app rails c
+
 
 ## Running tests
 
@@ -50,6 +54,7 @@ bundle exec rake db:test:prepare
 
 bundle exec rubocop
 
+
 ## Project structure (typical)
 
 - app/ or lib/ — application code
@@ -63,5 +68,16 @@ bundle exec rubocop
 - If a gem install fails, ensure you have system dependencies (e.g., libpq-dev for PostgreSQL).
 - Check `Gemfile` for required versions.
 - If the DB connection fails, verify credentials in `config/database.yml` or `.env`.
+
+## Helpful commands summary
+
+- Install gems: bundle install
+- Create/Migrate DB: 
+- Run server (Rails): bin/rails server
+- Run tests: bundle exec rspec
+
+## Contact / Further notes
+
+If anything is unclear, inspect `Gemfile`, `Rakefile`, `config/`, and top-level scripts to determine exact commands and versions required.
 
 <!-- End of README -->
