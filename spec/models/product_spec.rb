@@ -1,7 +1,6 @@
 require 'rails_helper'
-require_relative '../../../app/models/concerns/product'
 
-RSpec.describe Product do
+RSpec.describe Product, type: :model do
   it 'initializes attributes and returns values' do
     # Use provided data: MC Hammer Pants	Footwear	3005	285
     product = Product.new(name: 'MC Hammer Pants', category: 'Footwear', price: 3005, quantity: 285)
