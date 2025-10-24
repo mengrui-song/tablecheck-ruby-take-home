@@ -1,9 +1,16 @@
-
 FROM ruby:3.3.5-slim
 
 WORKDIR /rails
 
-RUN apt-get update -qq && apt-get install -y nodejs yarn build-essential git
+# Install runtime/build dependencies, wait for MongoDB to be ready
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+      netcat-openbsd \
+      nodejs \
+      yarn \
+      build-essential \
+      git && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY Gemfile Gemfile.lock ./
 RUN bundle install
