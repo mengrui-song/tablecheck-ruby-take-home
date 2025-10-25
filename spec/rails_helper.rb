@@ -56,4 +56,9 @@ RSpec.configure do |config|
   config.filter_rails_from_backtrace!
   # arbitrary gems may also be filtered via:
   # config.filter_gems_from_backtrace("gem name")
+
+  # Clear the products table before each test
+  config.before(:each) do
+    Product.delete_all
+  end
 end
