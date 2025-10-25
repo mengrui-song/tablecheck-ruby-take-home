@@ -1,5 +1,6 @@
 class CartItemsController < ApplicationController
   include CartSerializable
+  include CartManagement
 
   before_action :set_cart
 
@@ -62,16 +63,5 @@ class CartItemsController < ApplicationController
     }
   rescue Mongoid::Errors::DocumentNotFound
     render json: { error: "Cart item not found" }, status: :not_found
-  end
-
-  private
-
-  def set_cart
-    user_id = params[:user_id] || "1"
-    user = User.find_or_create_by(id: user_id) do |u|
-      u.email = "user#{user_id}@example.com"
-      u.name = "User #{user_id}"
-    end
-    @cart = user.cart || user.create_cart
   end
 end
