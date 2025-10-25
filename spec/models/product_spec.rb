@@ -78,12 +78,12 @@ RSpec.describe Product, type: :model do
 
     it 'has many order_items' do
       expect(product).to respond_to(:order_items)
-      
+
       # Create a user and order to test the association
       user = User.create!(email: 'test@example.com', name: 'Test User')
       order = user.orders.create!
       order_item = order.order_items.create!(product: product, quantity: 2, price: 100)
-      
+
       expect(product.order_items).to include(order_item)
     end
   end
