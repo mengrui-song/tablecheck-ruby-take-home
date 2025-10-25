@@ -60,5 +60,8 @@ RSpec.configure do |config|
   # Clear the products table before each test
   config.before(:each) do
     Product.delete_all
+    User.delete_all
+    Cart.destroy_all # This will clear carts and associated cart items
+    Order.destroy_all # This will clear orders and associated order items
   end
 end
