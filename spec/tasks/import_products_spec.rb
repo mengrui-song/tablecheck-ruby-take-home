@@ -43,7 +43,7 @@ RSpec.describe "products:import rake task" do
 
   it "imports valid products from CSV and skips invalid or duplicate rows" do
     csv = <<~CSV
-      NAME,CATEGORY,QTY,PRICE
+      NAME,CATEGORY,QTY,DEFAULT_PRICE
       Widget A,Gadgets,10,19.99
       Widget B,Gadgets,5,9.5
       ,Gadgets,1,1.0
@@ -61,11 +61,11 @@ RSpec.describe "products:import rake task" do
 
     expect(widget_a).not_to be_nil
     expect(widget_a.quantity.to_i).to eq(10)
-    expect(widget_a.price.to_f).to be_within(0.001).of(19.99)
+    expect(widget_a.default_price.to_f).to be_within(0.001).of(19.99)
 
     expect(widget_b).not_to be_nil
     expect(widget_b.quantity.to_i).to eq(5)
-    expect(widget_b.price.to_f).to be_within(0.001).of(9.5)
+    expect(widget_b.default_price.to_f).to be_within(0.001).of(9.5)
 
     # Optional assertions on output messages
     expect(output).to include("Importing products")
@@ -77,7 +77,7 @@ RSpec.describe "products:import rake task" do
 
   it "does not create duplicates when task is run multiple times" do
     csv = <<~CSV
-      NAME,CATEGORY,QTY,PRICE
+      NAME,CATEGORY,QTY,DEFAULT_PRICE
       Solo,Gear,3,3.33
     CSV
 

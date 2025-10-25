@@ -4,9 +4,9 @@ class Product
 
   field :name, type: String
   field :category, type: String
-  field :price, type: Float
+  field :default_price, type: Float
   field :quantity, type: Integer
 
   validates :name, :category, presence: true
-  validates :quantity, :price, numericality: { greater_than_or_equal_to: 0 }
+  validates :quantity, :default_price, numericality: { greater_than_or_equal_to: 0 }
 end
