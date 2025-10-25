@@ -1,7 +1,6 @@
 class Product
   include Mongoid::Document
   include Mongoid::Timestamps
-  include Mongoid::Optimistic
 
   has_many :order_items
 
@@ -20,8 +19,9 @@ class Product
     return unless quantity_changed? && quantity.present?
 
     # Calculate total quantity reserved by pending orders
-    pending_quantity = order_items.select { |item| item.order.status == "pending" }
-                                 .sum(&:quantity)
+    pending_order_ids = Order.where(status: "pending").pluck(:id)
+    pending_quantity = order_items.where(:order_id.in => pending_order_ids).sum(:quantity)
+
 
     if quantity < pending_quantity
       errors.add(:quantity, "cannot be set below #{pending_quantity} due to pending orders")
