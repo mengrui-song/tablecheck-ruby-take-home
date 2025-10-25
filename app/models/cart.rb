@@ -16,6 +16,17 @@ class Cart
   end
 
   def total_price
-    cart_items.select { |item| item.product }.sum { |item| item.quantity * item.product.default_price }
+    # Eager load products to avoid N+1 queries
+    cart_items = cart_items.includes(:product)
+
+    total_price = cart_items.sum do |item|
+      if item.product
+        item.quantity * item.product.default_price # TODO update the price to be dynamic price
+      else
+        0
+      end
+    end
+
+    total_price
   end
 end
