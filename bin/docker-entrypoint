@@ -13,7 +13,7 @@ while ! nc -z mongo 27017; do
   sleep 1
 done
 # Run any Rails commands before starting the server
-echo "Running migrations and seeding data..."
-rails products:import 2>/dev/null || true
+echo "Running products import..."
+rails products:import 
 
 exec "${@}"
