@@ -10,8 +10,8 @@ Rails.application.routes.draw do
   resources :products, only: [ :index, :show ]
 
   # Cart and Order routes
-  resource :cart, only: [:show, :destroy] do
-    resources :items, only: [:create, :update, :destroy], controller: 'cart_items'
+  resource :cart, only: [ :show, :destroy ] do
+    resources :items, only: [ :create, :update, :destroy ], controller: "cart_items"
   end
 
   resources :orders, only: [ :index, :show, :create ]
