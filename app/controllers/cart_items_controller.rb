@@ -7,8 +7,9 @@ class CartItemsController < ApplicationController
   # POST /cart/items
   def create
     product = Product.find(params[:product_id])
-    quantity = params[:quantity]&.to_i || 1
+    quantity = params[:quantity]&.to_i || 0
 
+    # TODO: The inventory check and cart update are not atomic.
     if product.quantity < quantity
       render json: { error: "Not enough inventory available" }, status: :unprocessable_entity
       return
