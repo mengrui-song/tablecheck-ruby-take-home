@@ -7,10 +7,6 @@ RSpec.describe "products:import", type: :task do
     Rake::Task.define_task(:environment)
   end
 
-  before(:each) do
-    Product.delete_all
-  end
-
   it "imports 50 products from data/inventory.csv" do
     expect(Product.count).to eq(0)
 
