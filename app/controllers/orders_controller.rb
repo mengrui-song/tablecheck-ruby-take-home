@@ -69,12 +69,14 @@ class OrdersController < ApplicationController
   end
 
   def order_json(order)
+    # Eager load order items and associated products to avoid N+1 queries
+    items_with_products = order.order_items.includes(:product)
     {
       id: order.id.to_s,
       status: order.status,
       total_price: order.total_price,
       created_at: order.created_at,
-      items: order.order_items.map do |item|
+      items: items_with_products.map do |item|
         {
           id: item.id.to_s,
           product: {
