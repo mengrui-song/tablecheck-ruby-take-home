@@ -8,6 +8,11 @@ RSpec.describe Cart, type: :model do
       cart = Cart.new(user: user)
       expect(cart).to be_valid
     end
+
+    it 'requires user association' do
+      cart = Cart.new
+      expect(cart).not_to be_valid
+    end
   end
 
   describe 'associations' do
@@ -75,6 +80,19 @@ RSpec.describe Cart, type: :model do
       expect(cart.cart_items.count).to eq(2)
       expect(cart.cart_items.map(&:product)).to contain_exactly(product, product2)
     end
+
+    it 'handles zero quantity addition' do
+      expect { cart.add_product(product.id, 0) }.to raise_error(ArgumentError, "Quantity must be greater than 0")
+    end
+
+    it 'handles negative quantity addition' do
+      expect { cart.add_product(product.id, -1) }.to raise_error(ArgumentError, "Quantity must be greater than 0")
+    end
+
+    it 'handles invalid product_id' do
+      invalid_id = BSON::ObjectId.new
+      expect { cart.add_product(invalid_id, 2) }.to raise_error(ArgumentError, "Product with id #{invalid_id} does not exist")
+    end
   end
 
   describe '#total_price' do
@@ -118,6 +136,19 @@ RSpec.describe Cart, type: :model do
 
       expected_total = (100 * 3) + (250 * 2) + (1000 * 1)
       expect(cart.total_price).to eq(expected_total)
+    end
+
+    it 'handles zero price products in total calculation' do
+      free_product = Product.create!(name: 'Free Product', category: 'Free', default_price: 0, quantity: 10)
+      cart.cart_items.create!(product: product1, quantity: 2)
+      cart.cart_items.create!(product: free_product, quantity: 5)
+      expect(cart.total_price).to eq(200)
+    end
+
+    it 'handles large quantities and prices' do
+      expensive_product = Product.create!(name: 'Very Expensive', category: 'Luxury', default_price: 10000, quantity: 1)
+      cart.cart_items.create!(product: expensive_product, quantity: 100)
+      expect(cart.total_price).to eq(1000000)
     end
   end
 

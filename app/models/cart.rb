@@ -6,6 +6,15 @@ class Cart
   has_many :cart_items, dependent: :destroy
 
   def add_product(product_id, qty = 1)
+    # Validate quantity
+    if qty <= 0
+      raise ArgumentError, "Quantity must be greater than 0"
+    end
+    # Validate product existence
+    product = Product.where(id: product_id).first
+    unless product
+      raise ArgumentError, "Product with id #{product_id} does not exist"
+    end
     item = cart_items.find_or_initialize_by(product_id: product_id)
     if item.persisted?
       item.quantity += qty
