@@ -71,6 +71,41 @@ RSpec.describe Product, type: :model do
       product.quantity = 1
       expect(product).to be_valid
     end
+
+    it 'handles multiple pending orders from different users' do
+      product = Product.create!(name: 'Test Product', category: 'Test', default_price: 100, quantity: 20)
+      user1 = User.create!(email: 'user1@example.com', name: 'User 1')
+      user2 = User.create!(email: 'user2@example.com', name: 'User 2')
+      
+      order1 = user1.orders.create!(status: 'pending')
+      order1.order_items.create!(product: product, quantity: 3, price: 100)
+      
+      order2 = user2.orders.create!(status: 'pending')
+      order2.order_items.create!(product: product, quantity: 5, price: 100)
+
+      product.quantity = 7
+      expect(product).not_to be_valid
+      expect(product.errors[:quantity]).to include('cannot be set below 8 due to pending orders')
+    end
+
+    it 'allows updating other attributes when quantity is unchanged' do
+      product = Product.create!(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10)
+      product.name = 'Updated Product'
+      product.default_price = 150
+      expect(product).to be_valid
+    end
+
+    it 'validates presence of required fields' do
+      product = Product.new
+      expect(product).not_to be_valid
+      expect(product.errors[:name]).to include("can't be blank")
+      expect(product.errors[:category]).to include("can't be blank")
+    end
+
+    it 'allows maximum safe integer values' do
+      product = Product.new(name: 'Test', category: 'Test', default_price: 999999999, quantity: 999999999)
+      expect(product).to be_valid
+    end
   end
 
   describe 'associations' do
