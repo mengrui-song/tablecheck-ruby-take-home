@@ -27,6 +27,21 @@ RSpec.describe CartItem, type: :model do
       cart_item = CartItem.new(cart: cart, product: product)
       expect(cart_item.quantity).to eq(1)
     end
+
+    it 'requires cart association' do
+      cart_item = CartItem.new(product: product, quantity: 2)
+      expect(cart_item).not_to be_valid
+    end
+
+    it 'requires product association' do
+      cart_item = CartItem.new(cart: cart, quantity: 2)
+      expect(cart_item).not_to be_valid
+    end
+
+    it 'requires quantity to be numeric' do
+      cart_item = CartItem.new(cart: cart, product: product, quantity: 'invalid')
+      expect(cart_item).not_to be_valid
+    end
   end
 
   describe 'associations' do
@@ -65,6 +80,17 @@ RSpec.describe CartItem, type: :model do
       expensive_product = Product.create!(name: 'Expensive Product', category: 'Luxury', default_price: 1000, quantity: 10)
       cart_item = CartItem.create!(cart: cart, product: expensive_product, quantity: 2)
       expect(cart_item.subtotal).to eq(2000)
+    end
+
+    it 'handles zero price products' do
+      free_product = Product.create!(name: 'Free Product', category: 'Free', default_price: 0, quantity: 10)
+      cart_item = CartItem.create!(cart: cart, product: free_product, quantity: 5)
+      expect(cart_item.subtotal).to eq(0)
+    end
+
+    it 'handles large quantities' do
+      cart_item = CartItem.create!(cart: cart, product: product, quantity: 1000)
+      expect(cart_item.subtotal).to eq(250000)
     end
   end
 
