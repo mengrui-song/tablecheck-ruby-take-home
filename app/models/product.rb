@@ -8,10 +8,20 @@ class Product
   field :category, type: String
   field :default_price, type: Integer
   field :quantity, type: Integer
+  field :dynamic_price, type: Integer
 
   validates :name, :category, presence: true
   validates :quantity, :default_price, numericality: { greater_than_or_equal_to: 0 }
   validate :quantity_not_below_pending_orders
+
+  def current_price
+    return dynamic_price if dynamic_price.present?
+    calculate_dynamic_price
+  end
+
+  def calculate_dynamic_price
+    default_price
+  end
 
   private
 

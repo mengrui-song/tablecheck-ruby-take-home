@@ -20,13 +20,8 @@ class ProductsController < ApplicationController
       id: product.id.to_s,
       name: product.name,
       category: product.category,
-      price: calculate_dynamic_price(product),
+      price: product.current_price,
       quantity: product.quantity
     }
-  end
-
-  def calculate_dynamic_price(product)
-    # TODO: Implement dynamic pricing logic here
-    product.default_price
   end
 end

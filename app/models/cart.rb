@@ -32,7 +32,7 @@ class Cart
 
     total_price = items_with_products.sum do |item|
       if item.product
-        item.quantity * item.product.default_price # TODO update the price to be dynamic price
+        item.quantity * item.product.current_price
       else
         0
       end
