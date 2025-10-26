@@ -76,10 +76,10 @@ RSpec.describe Product, type: :model do
       product = Product.create!(name: 'Test Product', category: 'Test', default_price: 100, quantity: 20)
       user1 = User.create!(email: 'user1@example.com', name: 'User 1')
       user2 = User.create!(email: 'user2@example.com', name: 'User 2')
-      
+
       order1 = user1.orders.create!(status: 'pending')
       order1.order_items.create!(product: product, quantity: 3, price: 100)
-      
+
       order2 = user2.orders.create!(status: 'pending')
       order2.order_items.create!(product: product, quantity: 5, price: 100)
 
