@@ -116,9 +116,7 @@ RSpec.describe Order, type: :model do
     end
 
     it 'raise error if user has product in cart when product quantity is updated' do
-      puts "product: #{product.attributes}"
       product.update!(quantity: 1)
-      puts "product after update: #{product.attributes}"
 
       expect { order.place!(cart) }.to raise_error("Not enough inventory for #{product.name}")
 
