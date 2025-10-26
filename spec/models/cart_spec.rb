@@ -47,8 +47,7 @@ RSpec.describe Cart, type: :model do
     let(:product) { Product.create!(name: 'Test Product', category: 'Test', default_price: 100, quantity: 50) }
 
     it 'adds a new product to the cart' do
-      # TODO: cart_items.count means how many different products are in the cart, it can be confusing
-      expect { cart.add_product(product.id, 2) }.to change { cart.cart_items.count }.by(1)
+      expect { cart.add_product(product.id, 2) }.to change { cart.distinct_products_count }.by(1)
 
       cart_item = cart.cart_items.first
       expect(cart_item.product).to eq(product)
@@ -66,7 +65,7 @@ RSpec.describe Cart, type: :model do
       cart.add_product(product.id, 2)
       cart.add_product(product.id, 3)
 
-      expect(cart.cart_items.count).to eq(1)
+      expect(cart.distinct_products_count).to eq(1)
       cart_item = cart.cart_items.first
       expect(cart_item.quantity).to eq(5)
     end
@@ -77,7 +76,7 @@ RSpec.describe Cart, type: :model do
       cart.add_product(product.id, 2)
       cart.add_product(product2.id, 1)
 
-      expect(cart.cart_items.count).to eq(2)
+      expect(cart.distinct_products_count).to eq(2)
       expect(cart.cart_items.map(&:product)).to contain_exactly(product, product2)
     end
 
@@ -149,6 +148,54 @@ RSpec.describe Cart, type: :model do
       expensive_product = Product.create!(name: 'Very Expensive', category: 'Luxury', default_price: 10000, quantity: 1)
       cart.cart_items.create!(product: expensive_product, quantity: 100)
       expect(cart.total_price).to eq(1000000)
+    end
+  end
+
+  describe 'helper methods' do
+    let(:user) { User.create!(email: 'test@example.com', name: 'Test User') }
+    let(:cart) { Cart.create!(user: user) }
+    let(:product1) { Product.create!(name: 'Product 1', category: 'Test', default_price: 100, quantity: 50) }
+    let(:product2) { Product.create!(name: 'Product 2', category: 'Test', default_price: 200, quantity: 30) }
+
+    describe '#distinct_products_count' do
+      it 'returns number of different products in cart' do
+        expect(cart.distinct_products_count).to eq(0)
+
+        cart.add_product(product1.id, 3)
+        expect(cart.distinct_products_count).to eq(1)
+
+        cart.add_product(product2.id, 2)
+        expect(cart.distinct_products_count).to eq(2)
+
+        cart.add_product(product1.id, 1) # Adding more of existing product
+        expect(cart.distinct_products_count).to eq(2)
+      end
+    end
+
+    describe '#total_items_count' do
+      it 'returns total quantity of all items in cart' do
+        expect(cart.total_items_count).to eq(0)
+
+        cart.add_product(product1.id, 3)
+        expect(cart.total_items_count).to eq(3)
+
+        cart.add_product(product2.id, 2)
+        expect(cart.total_items_count).to eq(5)
+
+        cart.add_product(product1.id, 1) # Adding more of existing product
+        expect(cart.total_items_count).to eq(6)
+      end
+    end
+
+    describe '#empty?' do
+      it 'returns true for empty cart' do
+        expect(cart.empty?).to be true
+      end
+
+      it 'returns false for cart with items' do
+        cart.add_product(product1.id, 1)
+        expect(cart.empty?).to be false
+      end
     end
   end
 

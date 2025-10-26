@@ -40,4 +40,17 @@ class Cart
 
     total_price
   end
+
+  # Helper methods for clarity
+  def distinct_products_count
+    cart_items.count
+  end
+
+  def total_items_count
+    cart_items.sum(:quantity)
+  end
+
+  def empty?
+    cart_items.empty?
+  end
 end
