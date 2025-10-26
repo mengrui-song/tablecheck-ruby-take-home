@@ -25,7 +25,6 @@ namespace :products do
 
         begin
           product.save!
-          puts "Created product: #{product.name}"
         rescue Mongoid::Errors::Validations => e
           puts "Skipping invalid product: #{attrs[:NAME]} (#{e.message})"
         end
