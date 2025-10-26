@@ -124,7 +124,6 @@ RSpec.describe Order, type: :model do
 
       product.reload
       expect(product.quantity).to eq(1) # Inventory should remain unchanged
-
     end
 
     it 'handles multiple products in cart' do
