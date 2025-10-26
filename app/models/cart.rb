@@ -13,6 +13,8 @@ class Cart
       item.quantity = qty
     end
     item.save
+    # Ensure cart_items association is reloaded to reflect changes
+    reload
   end
 
   def total_price
