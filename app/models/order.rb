@@ -27,14 +27,14 @@ class Order
       order_items.create!(
         product: product,
         quantity: cart_item.quantity,
-        price: product.default_price
+        price: product.current_price
       )
 
       # Reduce inventory
       product.inc(quantity: -cart_item.quantity)
 
       # Add to order total
-      self.total_price += cart_item.quantity * product.default_price
+      self.total_price += cart_item.quantity * product.current_price
     end
 
     # Now that total is calculated, mark as paid
