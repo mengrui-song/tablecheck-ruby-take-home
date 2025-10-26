@@ -23,7 +23,7 @@ This repository contains a Ruby-based take-home exercise for TableCheck. The REA
 3. If the project has a `Gemfile.lock` created with a specific Ruby, consider using a Ruby version manager (rbenv/rvm).
 
 4. Check for additional setup files:
-   - If a `.env.example` exists, copy it to `.env` and fill in secrets:
+   - Copy `.env.example` to `.env` and fill in secrets:
      cp .env.example .env
 
 ## Running the app

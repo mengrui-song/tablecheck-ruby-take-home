@@ -95,6 +95,9 @@ GEM
       reline (>= 0.3.8)
     diff-lcs (1.6.2)
     dotenv (3.1.8)
+    dotenv-rails (3.1.8)
+      dotenv (= 3.1.8)
+      railties (>= 6.1)
     drb (2.2.3)
     ed25519 (1.4.0)
     erb (5.1.1)
@@ -337,6 +340,7 @@ DEPENDENCIES
   brakeman
   csv
   debug
+  dotenv-rails
   kamal
   mongoid (~> 9.0)
   puma (>= 5.0)
