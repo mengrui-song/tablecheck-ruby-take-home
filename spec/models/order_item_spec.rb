@@ -27,6 +27,27 @@ RSpec.describe OrderItem, type: :model do
       order_item = OrderItem.new(order: order, product: product, quantity: 5, price: 100.0)
       expect(order_item).to be_valid
     end
+
+    it 'requires order association' do
+      order_item = OrderItem.new(product: product, quantity: 2, price: 100.0)
+      expect(order_item).not_to be_valid
+    end
+
+    it 'requires product association' do
+      order_item = OrderItem.new(order: order, quantity: 2, price: 100.0)
+      expect(order_item).not_to be_valid
+    end
+
+    it 'allows zero price' do
+      order_item = OrderItem.new(order: order, product: product, quantity: 2, price: 0.0)
+      expect(order_item).to be_valid
+    end
+
+    it 'should not allow negative price' do
+      order_item = OrderItem.new(order: order, product: product, quantity: 2, price: -10.0)
+      expect(order_item).not_to be_valid
+      expect(order_item.errors[:price]).to include('must be greater than or equal to 0')
+    end
   end
 
   describe 'associations' do
@@ -112,6 +133,18 @@ RSpec.describe OrderItem, type: :model do
 
       expect(order_item1.price).to eq(100.0)
       expect(order_item2.price).to eq(110.0)
+    end
+
+    it 'calculates total value for order item' do
+      order_item = OrderItem.create!(order: order, product: product, quantity: 3, price: 75.0)
+      total_value = order_item.quantity * order_item.price
+      expect(total_value).to eq(225.0)
+    end
+
+    it 'handles very high prices and quantities' do
+      order_item = OrderItem.create!(order: order, product: product, quantity: 1000, price: 999.99)
+      expect(order_item).to be_valid
+      expect(order_item.quantity * order_item.price).to eq(999990.0)
     end
   end
 end
