@@ -30,6 +30,7 @@ gem "thruster", require: false
 gem "mongoid", "~> 9.0"
 gem "sidekiq"
 gem "csv"
+gem "dotenv-rails"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
@@ -43,4 +44,6 @@ group :development, :test do
 
   # RSpec for Rails
   gem "rspec-rails"
+  # Mock HTTP requests in tests
+  gem "webmock"
 end
