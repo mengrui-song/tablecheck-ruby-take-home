@@ -36,7 +36,7 @@ class DynamicPricing::DemandCalculator
 
   # Determine price range for product-specific tuning
   def get_price_range
-    price = product.price || 0
+    price = product.current_price || 0
     case price
     when 1..1000
       :low        # 1-1000
