@@ -39,8 +39,7 @@ class DynamicPricingService
   end
 
   def inventory_calculator
-    # TODO: Uncomment when InventoryCalculator is ready
-    # @inventory_calculator ||= DynamicPricing::InventoryCalculator.new(product)
+    @inventory_calculator ||= DynamicPricing::InventoryCalculator.new(product)
   end
 
   def competitor_analyzer

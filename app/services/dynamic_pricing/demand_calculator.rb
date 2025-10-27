@@ -1,3 +1,5 @@
+require "bigdecimal"
+
 class DynamicPricing::DemandCalculator
   attr_reader :product
 
@@ -98,7 +100,12 @@ class DynamicPricing::DemandCalculator
 
   def safe_growth_calculation(current, previous)
     return 0 if previous.nil? || previous == 0 || current.nil?
-    ((current - previous).to_f / previous * 100).round(2)
+
+    current_bd = BigDecimal(current.to_s)
+    previous_bd = BigDecimal(previous.to_s)
+    hundred = BigDecimal("100")
+
+    ((current_bd - previous_bd) / previous_bd * hundred).to_f.round(2)
   end
 
   # Stage 3: Weighted growth - purchases weighted higher than cart additions (price-range adjusted)
@@ -106,13 +113,13 @@ class DynamicPricing::DemandCalculator
     return 0.0 if growth_rate.nil?
 
     weights = get_price_range_weights
-    purchase_weight = weights[:purchase_weight]
-    cart_weight = weights[:cart_weight]
+    purchase_weight = BigDecimal(weights[:purchase_weight].to_s)
+    cart_weight = BigDecimal(weights[:cart_weight].to_s)
 
-    purchases_growth = growth_rate[:purchases] || 0
-    cart_growth = growth_rate[:cart_additions] || 0
+    purchases_growth = BigDecimal((growth_rate[:purchases] || 0).to_s)
+    cart_growth = BigDecimal((growth_rate[:cart_additions] || 0).to_s)
 
-    (purchases_growth * purchase_weight + cart_growth * cart_weight).round(2)
+    (purchases_growth * purchase_weight + cart_growth * cart_weight).to_f.round(2)
   end
 
   # Stage 4: Tier-based multiplier based on growth rate ranges (price-range adjusted)
@@ -138,98 +145,102 @@ class DynamicPricing::DemandCalculator
 
   # Low price range (1-1000): More aggressive pricing, higher sensitivity
   def calculate_low_price_tier(weighted_growth)
-    case weighted_growth
+    multiplier = case weighted_growth
     when -Float::INFINITY..-25
-      0.75  # More aggressive price reduction
+      "0.75"  # More aggressive price reduction
     when -25...-10
-      0.85  # Moderate price reduction
+      "0.85"  # Moderate price reduction
     when -10...-3
-      0.92  # Small price reduction
+      "0.92"  # Small price reduction
     when -3..3
-      1.0   # Stable
+      "1.0"   # Stable
     when 3...10
-      1.08  # Small price increase
+      "1.08"  # Small price increase
     when 10...25
-      1.20  # Moderate price increase
+      "1.20"  # Moderate price increase
     when 25...40
-      1.35  # Strong price increase
+      "1.35"  # Strong price increase
     when 40..Float::INFINITY
-      1.50  # Maximum price increase
+      "1.50"  # Maximum price increase
     else
-      1.0
+      "1.0"
     end
+    BigDecimal(multiplier).to_f
   end
 
   # Medium price range (1001-3000): Balanced approach
   def calculate_medium_price_tier(weighted_growth)
-    case weighted_growth
+    multiplier = case weighted_growth
     when -Float::INFINITY..-30
-      0.8   # Significant decline
+      "0.8"   # Significant decline
     when -30...-15
-      0.9   # Moderate decline
+      "0.9"   # Moderate decline
     when -15...-5
-      0.95  # Slight decline
+      "0.95"  # Slight decline
     when -5..5
-      1.0   # Stable
+      "1.0"   # Stable
     when 5...15
-      1.05  # Slight growth
+      "1.05"  # Slight growth
     when 15...30
-      1.15  # Moderate growth
+      "1.15"  # Moderate growth
     when 30...50
-      1.25  # Strong growth
+      "1.25"  # Strong growth
     when 50..Float::INFINITY
-      1.35  # Very strong growth
+      "1.35"  # Very strong growth
     else
-      1.0
+      "1.0"
     end
+    BigDecimal(multiplier).to_f
   end
 
   # High price range (3001-6000): Conservative approach
   def calculate_high_price_tier(weighted_growth)
-    case weighted_growth
+    multiplier = case weighted_growth
     when -Float::INFINITY..-35
-      0.85  # Conservative price reduction
+      "0.85"  # Conservative price reduction
     when -35...-20
-      0.92  # Moderate price reduction
+      "0.92"  # Moderate price reduction
     when -20...-8
-      0.96  # Small price reduction
+      "0.96"  # Small price reduction
     when -8..8
-      1.0   # Wider stable range
+      "1.0"   # Wider stable range
     when 8...20
-      1.03  # Conservative price increase
+      "1.03"  # Conservative price increase
     when 20...35
-      1.08  # Moderate price increase
+      "1.08"  # Moderate price increase
     when 35...60
-      1.15  # Strong price increase
+      "1.15"  # Strong price increase
     when 60..Float::INFINITY
-      1.25  # Maximum conservative increase
+      "1.25"  # Maximum conservative increase
     else
-      1.0
+      "1.0"
     end
+    BigDecimal(multiplier).to_f
   end
 
   # Premium price range (6001+): Very conservative, prestige-focused
   def calculate_premium_price_tier(weighted_growth)
-    case weighted_growth
+    multiplier = case weighted_growth
     when -Float::INFINITY..-40
-      0.90  # Minimal price reduction to maintain prestige
+      "0.90"  # Minimal price reduction to maintain prestige
     when -40...-25
-      0.95  # Small price reduction
+      "0.95"  # Small price reduction
     when -25...-10
-      0.98  # Very small price reduction
+      "0.98"  # Very small price reduction
     when -10..10
-      1.0   # Very wide stable range
+      "1.0"   # Very wide stable range
     when 10...25
-      1.02  # Minimal price increase
+      "1.02"  # Minimal price increase
     when 25...40
-      1.05  # Small price increase
+      "1.05"  # Small price increase
     when 40...70
-      1.10  # Moderate price increase
+      "1.10"  # Moderate price increase
     when 70..Float::INFINITY
-      1.20  # Conservative maximum increase
+      "1.20"  # Conservative maximum increase
     else
-      1.0
+      "1.0"
     end
+    BigDecimal(multiplier).to_f
   end
 
   # Stage 5: Smoothing and limiting mechanism
@@ -237,21 +248,24 @@ class DynamicPricing::DemandCalculator
     return 1.0 if new_multiplier.nil? || !new_multiplier.is_a?(Numeric)
 
     # Get previous multiplier to avoid drastic changes
-    last_multiplier = product.last_demand_multiplier&.to_f || 1.0
+    last_multiplier = BigDecimal((product.last_demand_multiplier&.to_f || 1.0).to_s)
+    new_multiplier_bd = BigDecimal(new_multiplier.to_s)
 
     # Limit maximum change per adjustment (15% max change)
-    max_change = 0.15
-    change = new_multiplier - last_multiplier
+    max_change = BigDecimal("0.15")
+    change = new_multiplier_bd - last_multiplier
 
     # Apply smoothing
     if change.abs > max_change
       smoothed_multiplier = last_multiplier + (change > 0 ? max_change : -max_change)
     else
-      smoothed_multiplier = new_multiplier
+      smoothed_multiplier = new_multiplier_bd
     end
 
     # Final bounds: between 0.7 and 1.5
-    final_multiplier = [ [ smoothed_multiplier, 0.7 ].max, 1.5 ].min
+    min_bound = BigDecimal("0.7")
+    max_bound = BigDecimal("1.5")
+    final_multiplier = [ [ smoothed_multiplier, min_bound ].max, max_bound ].min.to_f
 
     # Store current multiplier for next calculation
     product.update(last_demand_multiplier: final_multiplier)
