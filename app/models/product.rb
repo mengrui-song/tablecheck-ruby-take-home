@@ -12,7 +12,8 @@ class Product
   field :last_demand_multiplier, type: Float, default: 1.0
 
   validates :name, :category, presence: true
-  validates :quantity, :default_price, :dynamic_price, :last_demand_multiplier, numericality: { greater_than_or_equal_to: 0 }
+  validates :quantity, :default_price, :last_demand_multiplier, numericality: { greater_than_or_equal_to: 0 }
+  validates :dynamic_price, numericality: { greater_than_or_equal_to: 0, allow_nil: true }
   validate :quantity_not_below_pending_orders
 
   def current_price
