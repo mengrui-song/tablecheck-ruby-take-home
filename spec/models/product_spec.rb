@@ -41,6 +41,38 @@ RSpec.describe Product, type: :model do
       expect(product).to be_valid
     end
 
+    it 'requires dynamic_price to be greater than or equal to 0' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10, dynamic_price: -50)
+      expect(product).not_to be_valid
+      expect(product.errors[:dynamic_price]).to include('must be greater than or equal to 0')
+    end
+
+    it 'allows dynamic_price to be 0' do
+      product = Product.new(name: 'Free Product', category: 'Test', default_price: 100, quantity: 10, dynamic_price: 0)
+      expect(product).to be_valid
+    end
+
+    it 'allows positive dynamic_price' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10, dynamic_price: 150)
+      expect(product).to be_valid
+    end
+
+    it 'requires last_demand_multiplier to be greater than or equal to 0' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10, last_demand_multiplier: -0.5)
+      expect(product).not_to be_valid
+      expect(product.errors[:last_demand_multiplier]).to include('must be greater than or equal to 0')
+    end
+
+    it 'allows last_demand_multiplier to be 0' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10, last_demand_multiplier: 0)
+      expect(product).to be_valid
+    end
+
+    it 'allows positive last_demand_multiplier' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10, last_demand_multiplier: 1.25)
+      expect(product).to be_valid
+    end
+
     it 'prevents quantity update below pending order requirements' do
       product = Product.create!(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10)
       user = User.create!(email: 'test@example.com', name: 'Test User')
@@ -151,6 +183,86 @@ RSpec.describe Product, type: :model do
       product = Product.new
       product.quantity = 50
       expect(product.quantity).to eq(50)
+    end
+
+    it 'allows setting and getting dynamic_price' do
+      product = Product.new
+      product.dynamic_price = 2500
+      expect(product.dynamic_price).to eq(2500)
+    end
+  end
+
+  describe 'last_demand_multiplier field' do
+    it 'has default value of 1.0' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10)
+      expect(product.last_demand_multiplier).to eq(1.0)
+    end
+
+    it 'allows setting custom last_demand_multiplier value' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10)
+      product.last_demand_multiplier = 1.25
+      expect(product.last_demand_multiplier).to eq(1.25)
+    end
+
+    it 'persists last_demand_multiplier to database' do
+      product = Product.create!(
+        name: 'Test Product',
+        category: 'Test',
+        default_price: 100,
+        quantity: 10,
+        last_demand_multiplier: 1.15
+      )
+
+      reloaded_product = Product.find(product.id)
+      expect(reloaded_product.last_demand_multiplier).to eq(1.15)
+    end
+
+    it 'allows updating last_demand_multiplier' do
+      product = Product.create!(
+        name: 'Test Product',
+        category: 'Test',
+        default_price: 100,
+        quantity: 10
+      )
+
+      expect(product.last_demand_multiplier).to eq(1.0)
+
+      product.update!(last_demand_multiplier: 0.85)
+      expect(product.reload.last_demand_multiplier).to eq(0.85)
+    end
+
+    it 'accepts Float values' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10)
+      product.last_demand_multiplier = 1.333333
+      expect(product.last_demand_multiplier).to eq(1.333333)
+    end
+
+    it 'accepts decimal values within typical multiplier range' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10)
+
+      # Test boundary values for demand calculator (0.7 - 1.5)
+      product.last_demand_multiplier = 0.7
+      expect(product.last_demand_multiplier).to eq(0.7)
+
+      product.last_demand_multiplier = 1.5
+      expect(product.last_demand_multiplier).to eq(1.5)
+    end
+
+    it 'handles nil value gracefully' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10)
+      product.last_demand_multiplier = nil
+      expect(product.last_demand_multiplier).to be_nil
+    end
+
+    it 'maintains default value when not explicitly set during creation' do
+      product = Product.create!(
+        name: 'Test Product',
+        category: 'Test',
+        default_price: 100,
+        quantity: 10
+      )
+
+      expect(product.last_demand_multiplier).to eq(1.0)
     end
   end
 end

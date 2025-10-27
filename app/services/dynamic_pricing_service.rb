@@ -35,8 +35,7 @@ class DynamicPricingService
   private
 
   def demand_calculator
-    # TODO: Uncomment when DemandCalculator is ready
-    # @demand_calculator ||= DynamicPricing::DemandCalculator.new(product)
+    @demand_calculator ||= DynamicPricing::DemandCalculator.new(product)
   end
 
   def inventory_calculator
