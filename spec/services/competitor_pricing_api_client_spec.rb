@@ -17,7 +17,7 @@ RSpec.describe CompetitorPricingApiClient, type: :service do
 
   describe '.fetch_prices' do
     it 'delegates to instance method' do
-      allow_any_instance_of(CompetitorPricingApiClient).to receive(:fetch_prices).and_return([])
+      allow(CompetitorPricingApiClient).to receive(:new).and_return(instance_double(CompetitorPricingApiClient, fetch_prices: []))
       result = CompetitorPricingApiClient.fetch_prices
       expect(result).to eq([])
     end
