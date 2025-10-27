@@ -43,7 +43,6 @@ class DynamicPricingService
   end
 
   def competitor_analyzer
-    # TODO: Uncomment when CompetitorAnalyzer is ready
-    # @competitor_analyzer ||= DynamicPricing::CompetitorAnalyzer.new(product)
+    @competitor_analyzer ||= DynamicPricing::CompetitorAnalyzer.new(product)
   end
 end
