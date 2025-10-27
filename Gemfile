@@ -44,4 +44,6 @@ group :development, :test do
 
   # RSpec for Rails
   gem "rspec-rails"
+  # Mock HTTP requests in tests
+  gem "webmock"
 end
