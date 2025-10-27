@@ -9,6 +9,7 @@ class Product
   field :default_price, type: Integer
   field :quantity, type: Integer
   field :dynamic_price, type: Integer
+  field :last_demand_multiplier, type: Float, default: 1.0
 
   validates :name, :category, presence: true
   validates :quantity, :default_price, numericality: { greater_than_or_equal_to: 0 }
