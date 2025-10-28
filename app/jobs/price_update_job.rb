@@ -9,7 +9,8 @@ class PriceUpdateJob
     start_time = Time.current
     updated_count = 0
 
-    Product.all.each do |product|
+    # Iterate over products in batches to avoid loading all into memory
+    Product.all.batch_size(1000).no_timeout.each do |product|
       begin
         old_price = product.dynamic_price
         DynamicPricingService.new(product).calculate_dynamic_price
