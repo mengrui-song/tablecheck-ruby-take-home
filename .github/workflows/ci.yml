@@ -50,6 +50,16 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
+      
+      redis:
+        image: redis:7.0
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
       - name: Install packages
@@ -93,7 +103,31 @@ jobs:
             echo "mongosh failed to ping Mongo after waiting; continuing anyway"
           fi
 
+      - name: Wait for Redis to be ready
+        run: |
+          # wait for port to be open (gives the container time to initialize)
+          for i in $(seq 1 60); do
+            if nc -z localhost 6379; then
+              echo "Redis is listening on 6379"
+              break
+            fi
+            echo "Waiting for Redis... ($i/60)"
+            sleep 1
+          done
+          # if redis-cli is present in runner, try a health check; otherwise proceed
+          if command -v redis-cli >/dev/null 2>&1; then
+            for i in $(seq 1 30); do
+              if redis-cli -h localhost ping >/dev/null 2>&1; then
+                echo "Redis responded to ping"
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "redis-cli failed to ping Redis after waiting; continuing anyway"
+          fi
+
       - name: Run tests
         env:
           RAILS_ENV: test
+          REDIS_URL: redis://localhost:6379/0
         run: bin/rails db:test:prepare test
