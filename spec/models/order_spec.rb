@@ -105,7 +105,7 @@ RSpec.describe Order, type: :model do
     it 'calculates total price correctly' do
       order.place!(cart)
 
-      expect(order.total_price).to eq(2 * product.default_price)
+      expect(order.total_price).to eq(2 * product.current_price)
     end
 
     it 'clears the cart after placing order' do

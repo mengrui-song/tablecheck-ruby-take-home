@@ -124,6 +124,7 @@ RSpec.describe Product, type: :model do
       product = Product.create!(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10)
       product.name = 'Updated Product'
       product.default_price = 150
+      product.dynamic_price = 120
       expect(product).to be_valid
     end
 
@@ -158,10 +159,10 @@ RSpec.describe Product, type: :model do
   describe 'attributes' do
     it 'initializes attributes and returns values' do
       # Use provided data: MC Hammer Pants	Footwear	3005	285
-      product = Product.new(name: 'MC Hammer Pants', category: 'Footwear', default_price: 3005, quantity: 285)
+      product = Product.new(name: 'MC Hammer Pants', category: 'Footwear', dynamic_price: 3005, quantity: 285)
       expect(product.name).to eq('MC Hammer Pants')
       expect(product.category).to eq('Footwear')
-      expect(product.default_price).to eq(3005)
+      expect(product.current_price).to eq(3005)
       expect(product.quantity).to eq(285)
     end
 
