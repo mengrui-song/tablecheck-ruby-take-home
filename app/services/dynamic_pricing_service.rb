@@ -12,13 +12,13 @@ class DynamicPricingService
     # Step 2: Adjust the base price using demand and inventory factors
     demand_multiplier = demand_calculator.calculate_multiplier
     inventory_multiplier = inventory_calculator.calculate_multiplier
-    calculated_price = (base_price * demand_multiplier * inventory_multiplier).to_i
+    calculated_price = (base_price * demand_multiplier * inventory_multiplier).round
 
     # Step 3: Adjust the price based on competitor pricing and default price
     adjusted_price = competitor_analyzer.analyze_and_adjust(calculated_price)
 
     # Step 4: Ensure final price is not below 80% of default price
-    final_price = [ adjusted_price, (base_price * 0.8).to_i ].max
+    final_price = [ adjusted_price, (base_price * 0.8).round ].max
 
     product.update(dynamic_price: final_price)
     final_price

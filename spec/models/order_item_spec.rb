@@ -116,12 +116,12 @@ RSpec.describe OrderItem, type: :model do
       order_item = OrderItem.create!(order: order, product: product, quantity: 2, price: 85.0)
 
       # Change product price after order item creation
-      product.update!(default_price: 120)
+      product.update!(dynamic_price: 120)
 
       # Order item price should remain unchanged
       order_item.reload
       expect(order_item.price).to eq(85.0)
-      expect(product.default_price).to eq(120)
+      expect(product.current_price).to eq(120)
     end
 
     it 'allows different prices for same product in different order items' do
