@@ -256,14 +256,14 @@ RSpec.describe DynamicPricingService, 'Integration Tests', type: :service do
             "qty": 169
           },
           {
-            "name": "Overstocked Book", 
+            "name": "Overstocked Book",
             "category": "Books",
             "price": 8968,
             "qty": 169
           },
           {
             "name": "Seasonal Clothing",
-            "category": "Clothing", 
+            "category": "Clothing",
             "price": 8968,
             "qty": 169
           }
