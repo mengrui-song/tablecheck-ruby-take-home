@@ -29,6 +29,7 @@ gem "thruster", require: false
 
 gem "mongoid", "~> 9.0"
 gem "sidekiq"
+gem "sidekiq-cron"
 gem "csv"
 gem "dotenv-rails"
 

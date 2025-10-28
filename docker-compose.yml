@@ -10,6 +10,7 @@ services:
       - "3000:3000"
     depends_on:
       - mongo
+      - redis
     entrypoint: ["/rails/bin/docker-entrypoint"]
     command: ["rails", "server", "-b", "0.0.0.0"]
   mongo:
@@ -19,3 +20,8 @@ services:
       - "27017:27017"
     volumes:
       - ./data/mongo:/data/db
+  redis:
+    image: redis:7
+    container_name: redis
+    ports:
+      - "6379:6379"
