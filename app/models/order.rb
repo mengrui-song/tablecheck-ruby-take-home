@@ -5,11 +5,11 @@ class Order
   belongs_to :user
   has_many :order_items, dependent: :destroy
 
-  field :status, type: String, default: "pending" # pending, paid, expired
+  field :status, type: String, default: "pending" # pending, paid, expired, failed
   field :total_price, type: Integer, default: 0
   field :expires_at, type: Time
 
-  validates :status, inclusion: { in: %w[pending paid expired] }
+  validates :status, inclusion: { in: %w[pending paid expired failed] }
 
   scope :expired, -> { where(status: "pending", :expires_at.lt => Time.current) }
   scope :active, -> { where(status: "pending", :expires_at.gt => Time.current) }
@@ -43,6 +43,7 @@ class Order
       )
 
       unless updated_product
+        self.update!(status: "failed")
         raise "Not enough inventory for #{product.name}"
       end
 
