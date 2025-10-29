@@ -20,12 +20,25 @@
 - `docker-compose.yml` — Multi-container setup (app, MongoDB, Sidekiq)
 
 **System Components:**
+
 - **Products**: Core catalog with dynamic pricing (default_price, dynamic_price, inventory tracking)
 - **Cart**: User shopping cart with cart items that validates inventory before adding products
 - **Orders**: Purchase records that atomically reduce inventory and create order items with locked-in prices
 - **Dynamic Pricing**: Multi-factor pricing engine that adjusts prices based on demand patterns, inventory levels, and competitor data
 
+**Dynamic Pricing Logic:**
+
+The system automatically adjusts prices using a 4-step process:
+
+1. **Demand Analysis** - Compares current vs previous week activity (purchases + carts)
+2. **Inventory Adjustment** - Increases prices for low stock, decreases for high stock
+3. **Competitor Matching** - Aligns with external pricing data when available
+4. **Boundary Control** - Caps final price between 80%-150% of default price
+
+_For detailed business rules, see the Dynamic Pricing section below._
+
 **Background Processing:**
+
 - **PriceUpdateJob**: Sidekiq job that periodically recalculates all product prices using demand analysis, inventory levels, and external competitor pricing API
 
 **Flow**: User adds products to cart → Places order (inventory reduced, prices locked) → Background job analyzes demand and updates dynamic prices for future purchases
@@ -60,6 +73,7 @@ graph TD
 ## 3. Setup and Installation
 
 ### Prerequisites
+
 - Ruby 3.3.5
 - Bundler (`gem install bundler`)
 - MongoDB
@@ -68,12 +82,14 @@ graph TD
 ### Installation Steps
 
 1. **Clone repository**
+
    ```bash
    git clone https://github.com/mengrui-song/tablecheck-ruby-take-home.git
    cd tablecheck-ruby-take-home
    ```
 
 2. **Install gems**
+
    ```bash
    bundle install
    ```
@@ -84,20 +100,22 @@ graph TD
    ```
    Fill in required secrets in the `.env` file.
 
-
 ## 4. Running the Application
 
 **Start app:**
+
 ```bash
 docker compose up
 ```
 
 **Rails console:**
+
 ```bash
 docker compose exec app rails c
 ```
 
 **Rebuild image (if needed):**
+
 ```bash
 docker compose build app
 ```
@@ -105,6 +123,7 @@ docker compose build app
 **Note:** Products will automatically import from `data/inventory.csv` on startup. If CSV has different quantities/prices than database, existing products will be updated.
 
 **Sample `.env` configuration:**
+
 ```bash
 # Competitor Pricing API Configuration
 COMPETITOR_API_BASE_URL=https://sinatra-pricing-api.fly.dev
@@ -115,21 +134,25 @@ REDIS_URL=redis://localhost:6379/0
 ## 5. Running Tests
 
 **RSpec:**
+
 ```bash
 bundle exec rspec
 ```
 
 **Rake (if using MiniTest):**
+
 ```bash
 bundle exec rake test
 ```
 
 **Prepare test database:**
+
 ```bash
 bundle exec rake db:test:prepare
 ```
 
 **RuboCop (linting):**
+
 ```bash
 bundle exec rubocop
 ```
@@ -137,15 +160,18 @@ bundle exec rubocop
 ## 6. API Reference
 
 ### Base URL
+
 `http://localhost:3000`
 
 ### Endpoints
 
 #### 1. Products
+
 - **List all products**: `GET /products`
 - **Show specific product**: `GET /products/{id}`
 
 #### 2. Cart Management
+
 - **Add to cart**: `POST /cart/items`
   ```json
   {
@@ -165,6 +191,7 @@ bundle exec rubocop
 - **Clear cart**: `DELETE /cart?user_id={user_id}`
 
 #### 3. Orders
+
 - **Place order**: `POST /orders`
   ```json
   {
@@ -175,6 +202,7 @@ bundle exec rubocop
 - **View specific order**: `GET /orders/{id}?user_id={user_id}`
 
 #### 4. Dynamic Pricing
+
 - **Trigger price update**:
   ```bash
   docker-compose exec app rails runner "PriceUpdateJob.new.perform"
@@ -182,6 +210,7 @@ bundle exec rubocop
 - **Verify updated prices**: `GET /products/{id}` (check dynamic_price field)
 
 ### Notes
+
 - **Product IDs**: MongoDB ObjectIds (24-character hex strings)
 - **Currency**: Japanese Yen (¥) as whole numbers
 - **Authentication**: Simplified with `user_id` parameter
@@ -203,12 +232,14 @@ bundle exec rubocop
 #### 1. Product Management
 
 **List All Products**
+
 - **Method**: GET
 - **URL**: `http://localhost:3000/products`
 - **Expected Response**: Array of products with id, name, category, price, quantity
 - **Note**: Choose any two products from this list to use as Product1 and Product2 in the following examples
 
 **Show Specific Product**
+
 - **Method**: GET
 - **URL**: `http://localhost:3000/products/{product1_id}`
 - **Response Format**:
@@ -225,6 +256,7 @@ bundle exec rubocop
 #### 2. Cart and Order Management
 
 **Add Product1 to Cart**
+
 - **Method**: POST
 - **URL**: `http://localhost:3000/cart/items`
 - **Headers**: `Content-Type: application/json`
@@ -238,6 +270,7 @@ bundle exec rubocop
   ```
 
 **Add Product2 to Cart (Excessive Quantity)**
+
 - **Method**: POST
 - **URL**: `http://localhost:3000/cart/items`
 - **Headers**: `Content-Type: application/json`
@@ -252,6 +285,7 @@ bundle exec rubocop
 - **Expected Message**: "Not enough inventory available"
 
 **Add Product2 to Cart (Valid Quantity)**
+
 - **Method**: POST
 - **URL**: `http://localhost:3000/cart/items`
 - **Headers**: `Content-Type: application/json`
@@ -297,6 +331,7 @@ bundle exec rubocop
   ```
 
 **Place Order**
+
 - **Method**: POST
 - **URL**: `http://localhost:3000/orders`
 - **Headers**: `Content-Type: application/json`
@@ -309,6 +344,7 @@ bundle exec rubocop
 - **Expected Message**: "Order success"
 
 **Verify Inventory Changes**
+
 - **Method**: GET
 - **URL**: `http://localhost:3000/products/{product1_id}`
 - **Expected**: Product1 quantity should be reduced by the ordered amount
@@ -321,11 +357,13 @@ bundle exec rubocop
 **Trigger Price Update Job**
 
 - **Method 1**: Execute directly via Rails runner (recommended for testing)
+
   ```bash
   docker-compose exec app rails runner "PriceUpdateJob.new.perform"
   ```
 
 - **Method 2**: Queue job via Sidekiq (asynchronous)
+
   ```bash
   docker-compose exec app rails runner "PriceUpdateJob.perform_async"
   ```
@@ -338,6 +376,7 @@ bundle exec rubocop
   ```
 
 **Check Updated Prices**
+
 - **Method**: GET
 - **URL**: `http://localhost:3000/products/{product1_id}`
 - **Expected**: Check if `price` field has been updated based on demand
@@ -345,7 +384,6 @@ bundle exec rubocop
 - **Method**: GET
 - **URL**: `http://localhost:3000/products/{product2_id}`
 - **Expected**: Check if `price` field has been updated based on demand
-
 
 ### Notes
 
@@ -361,7 +399,46 @@ bundle exec rubocop
 - **Database connection issues**: Verify credentials in `mongoid.yml`
 - **Postman request failures**: Ensure Docker containers are running with `docker-compose ps`
 
-## 9. Future Improvements
+## 9. Dynamic Pricing Business Logic
+
+### Overview
+This system automatically adjusts product prices based on demand trends, inventory levels, and competitor prices, while maintaining profitability and market competitiveness.
+
+### 1. Demand-Based Adjustment
+- **Data Requirement**: Minimum 10 transactions per week (insufficient data = no price change)
+- **Growth Calculation**: Compares current week vs previous week demand (purchases + cart additions)
+- **Weighted Scoring**: Purchase growth weighted more heavily than cart additions
+- **Price Tier Weighting**:
+  - Low-priced items → purchases 80%, carts 20%
+  - High-priced items → purchases 40%, carts 60%  
+  - Premium items → purchases 50%, carts 50%
+- **Price Multipliers**: Strong growth = up to +50%, strong decline = up to -25%
+- **Smoothing**: Limits changes to ±15% per adjustment, overall 0.7x to 1.5x original
+
+### 2. Inventory-Based Adjustment
+- **Low stock** (≤50 units) → +30% increase
+- **High stock** (>250 units) → -10% discount
+- **Category Modifiers**:
+  - Footwear → +5% (higher demand)
+  - Accessories → -5% (price-sensitive)
+  - Clothing → neutral baseline
+- **Skip Conditions**: Stable demand (multiplier = 1.0) or missing stock data
+
+### 3. Competitor-Based Adjustment
+- **Price too high** (>10% above competitor) → reduce to within 20% of competitor
+- **Price too low** (>5% below competitor) → increase up to 5%
+- **Competitive range** (±5-10%) → no change
+- **Goal**: Competitive alignment without price wars
+
+### 4. Price Boundaries & Automation
+- **Final Bounds**: 80% to 150% of default price
+- **Currency**: Whole yen (¥) values only
+- **Schedule**: Weekly Sidekiq job, Mondays at 9:00 AM
+- **Sequence**: Demand → Inventory → Competitor → Boundary Enforcement
+- **Performance**: Bulk operations for large catalogs
+
+## 10. Future Improvements
+
 - Add rate limiting for competitor API requests
 - Implement authentication (JWT)
 - Cache price calculations for large catalogs
