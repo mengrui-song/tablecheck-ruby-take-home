@@ -9,7 +9,6 @@ class CartItemsController < ApplicationController
     product = Product.find(params[:product_id])
     quantity = params[:quantity]&.to_i || 0
 
-    # TODO: The inventory check and cart update are not atomic.
     if quantity > 0 && product.quantity < quantity
       render json: {
         error: "Not enough inventory available for #{product.name}",
