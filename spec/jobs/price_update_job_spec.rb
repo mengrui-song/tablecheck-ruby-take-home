@@ -56,7 +56,9 @@ RSpec.describe PriceUpdateJob, type: :job do
       # Mock the service to return new prices without saving
       allow_any_instance_of(DynamicPricingService).to receive(:calculate_dynamic_price) do |service|
         product = service.instance_variable_get(:@product)
-        product.dynamic_price + 5.0
+        new_price = product.dynamic_price + 5.0
+        product.update(dynamic_price: new_price)
+        new_price
       end
 
       expect(Rails.logger).to receive(:info).with(/Starting periodic price update job/).ordered
