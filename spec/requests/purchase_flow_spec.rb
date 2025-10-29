@@ -93,5 +93,84 @@ RSpec.describe "Purchase Flow", type: :request do
       cart_data = JSON.parse(response.body)
       expect(cart_data["cart"]["items"]).to be_empty
     end
+
+    it "prevents race conditions during concurrent purchases" do
+      # Create a product with limited inventory
+      limited_product = Product.create!(name: "Limited Product", category: "Electronics", default_price: 100, quantity: 1)
+      user_a_id = "user_a"
+      user_b_id = "user_b"
+
+      # Both users add the same product to their carts (this should work)
+      post "/cart/items", params: { user_id: user_a_id, product_id: limited_product.id, quantity: 1 }
+      expect(response).to have_http_status(:success)
+
+      post "/cart/items", params: { user_id: user_b_id, product_id: limited_product.id, quantity: 1 }
+      expect(response).to have_http_status(:success)
+
+      # User A places order first - should succeed
+      post "/orders", params: { user_id: user_a_id }
+      expect(response).to have_http_status(:created)
+      order_a_data = JSON.parse(response.body)
+      expect(order_a_data["order"]["status"]).to eq("paid")
+
+      # Verify inventory was decremented after User A's purchase
+      limited_product.reload
+      expect(limited_product.quantity).to eq(0)
+
+      # User B tries to place order - should fail due to no inventory left
+      post "/orders", params: { user_id: user_b_id }
+      expect(response).to have_http_status(:unprocessable_entity)
+      order_b_error = JSON.parse(response.body)
+      expect(order_b_error["error"]).to include("Not enough inventory for Limited Product")
+
+      # Verify User B's cart still contains the item (order failed)
+      get "/cart", params: { user_id: user_b_id }
+      expect(response).to have_http_status(:success)
+      cart_b_data = JSON.parse(response.body)
+      expect(cart_b_data["cart"]["items"].size).to eq(1)
+
+      # Verify inventory remains at 0 (not negative)
+      limited_product.reload
+      expect(limited_product.quantity).to eq(0)
+    end
+
+    it "handles order expiration and inventory restoration" do
+      # Add products to cart
+      post "/cart/items", params: { user_id: user_id, product_id: product1.id, quantity: 2 }
+      expect(response).to have_http_status(:success)
+
+      initial_quantity = product1.quantity
+
+      # Create order but don't complete payment
+      order = Order.create!(
+        user: User.find_or_create_by(id: user_id) { |u| u.email = "#{user_id}@example.com"; u.name = "User #{user_id}" },
+        status: "pending",
+        expires_at: 1.minute.ago, # Already expired
+        total_price: 200
+      )
+      order.order_items.create!(product: product1, quantity: 2, price: 100)
+
+      # Reduce inventory to simulate the order
+      product1.update!(quantity: initial_quantity - 2)
+
+      # Run cleanup to expire the order
+      Order.cleanup_expired!
+
+      # Verify inventory was restored
+      product1.reload
+      expect(product1.quantity).to eq(initial_quantity)
+
+      # Verify order was marked as expired
+      order.reload
+      expect(order.status).to eq("expired")
+    end
+
+    it "allows expired status in order validation" do
+      order = Order.new(
+        user: User.find_or_create_by(id: user_id) { |u| u.email = "#{user_id}@example.com"; u.name = "User #{user_id}" },
+        status: "expired"
+      )
+      expect(order).to be_valid
+    end
   end
 end

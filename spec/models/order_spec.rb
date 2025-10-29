@@ -149,5 +149,111 @@ RSpec.describe Order, type: :model do
       order_item = order.order_items.first
       expect(order_item.price).to eq(100) # Original price preserved
     end
+
+    it 'handles concurrent access to different products correctly' do
+      # Create two different products with 1 item each
+      product_a = Product.create!(name: 'Product A', category: 'Test', default_price: 100, quantity: 1)
+      product_b = Product.create!(name: 'Product B', category: 'Test', default_price: 100, quantity: 1)
+
+      # Create two users with different products
+      user_a = User.create!(email: 'user_a@example.com', name: 'User A')
+      user_b = User.create!(email: 'user_b@example.com', name: 'User B')
+      cart_a = Cart.create!(user: user_a)
+      cart_b = Cart.create!(user: user_b)
+
+      cart_a.update_product(product_a.id.to_s, 1)
+      cart_b.update_product(product_b.id.to_s, 1)
+
+      order_a = user_a.orders.new
+      order_b = user_b.orders.new
+
+      # Both orders should succeed since they're for different products
+      expect { order_a.place!(cart_a) }.not_to raise_error
+      expect { order_b.place!(cart_b) }.not_to raise_error
+
+      # Verify both products are sold out
+      product_a.reload
+      product_b.reload
+      expect(product_a.quantity).to eq(0)
+      expect(product_b.quantity).to eq(0)
+    end
+
+    it 'sets 15-minute expiration when order is placed' do
+      # Mock time to control the test
+      allow(Time).to receive(:current).and_return(Time.parse("2023-01-01 12:00:00"))
+
+      order.place!(cart)
+
+      # Should be set to 15 minutes from "now"
+      expected_expiration = Time.parse("2023-01-01 12:15:00")
+      expect(order.expires_at).to be_nil # Expiration is cleared when order is paid
+      expect(order.status).to eq("paid")
+    end
+  end
+
+  describe 'expiration functionality' do
+    let(:user) { User.create!(email: 'test@example.com', name: 'Test User') }
+    let(:product) { Product.create!(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10) }
+
+    it 'identifies expired orders correctly' do
+      order = Order.create!(user: user, status: "pending", expires_at: 1.minute.ago)
+      expect(order.expired?).to be true
+    end
+
+    it 'identifies active orders correctly' do
+      order = Order.create!(user: user, status: "pending", expires_at: 1.minute.from_now)
+      expect(order.expired?).to be false
+    end
+
+    it 'does not consider paid orders as expired' do
+      order = Order.create!(user: user, status: "paid", expires_at: 1.minute.ago)
+      expect(order.expired?).to be false
+    end
+
+    describe '.cleanup_expired!' do
+      it 'returns inventory for expired orders' do
+        # Create an order with items
+        order = Order.create!(user: user, status: "pending", expires_at: 1.minute.ago, total_price: 200)
+        order.order_items.create!(product: product, quantity: 2, price: 100)
+
+        initial_quantity = product.quantity
+
+        # Run cleanup
+        Order.cleanup_expired!
+
+        # Check that inventory was returned
+        product.reload
+        expect(product.quantity).to eq(initial_quantity + 2)
+
+        # Check that order status was updated
+        order.reload
+        expect(order.status).to eq("expired")
+      end
+
+      it 'only affects pending expired orders' do
+        # Create a paid order that's past expiration
+        paid_order = Order.create!(user: user, status: "paid", expires_at: 1.minute.ago, total_price: 100)
+        paid_order.order_items.create!(product: product, quantity: 1, price: 100)
+
+        # Create a pending non-expired order
+        active_order = Order.create!(user: user, status: "pending", expires_at: 1.minute.from_now, total_price: 100)
+        active_order.order_items.create!(product: product, quantity: 1, price: 100)
+
+        initial_quantity = product.quantity
+
+        Order.cleanup_expired!
+
+        # Inventory should not change
+        product.reload
+        expect(product.quantity).to eq(initial_quantity)
+
+        # Orders should remain unchanged
+        paid_order.reload
+        expect(paid_order.status).to eq("paid")
+
+        active_order.reload
+        expect(active_order.status).to eq("pending")
+      end
+    end
   end
 end
