@@ -147,6 +147,11 @@ docker compose build app
 
 **Note:** Products will automatically import from `data/inventory.csv` on startup. If CSV has different quantities/prices than database, existing products will be updated.
 
+**Import the csv manually:**
+```bash
+docker compose exec app rails products:import
+```
+
 **Sample `.env` configuration:**
 
 ```bash
