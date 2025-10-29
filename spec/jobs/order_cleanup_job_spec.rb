@@ -124,12 +124,12 @@ RSpec.describe OrderCleanupJob, type: :job do
 
       it 'does not process failed orders' do
         initial_quantity = product.quantity
-        
+
         OrderCleanupJob.new.perform
-        
+
         # Failed order should remain unchanged
         expect(failed_order.reload.status).to eq("failed")
-        
+
         # Inventory should not be affected
         expect(product.reload.quantity).to eq(initial_quantity)
       end
