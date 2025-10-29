@@ -11,16 +11,15 @@ RSpec.describe CartItem, type: :model do
       expect(cart_item).to be_valid
     end
 
-    it 'requires quantity to be greater than 0' do
+    it 'allows quantity to be zero' do
       cart_item = CartItem.new(cart: cart, product: product, quantity: 0)
-      expect(cart_item).not_to be_valid
-      expect(cart_item.errors[:quantity]).to include('must be greater than 0')
+      expect(cart_item).to be_valid
     end
 
     it 'requires quantity to be greater than 0 for negative values' do
       cart_item = CartItem.new(cart: cart, product: product, quantity: -1)
       expect(cart_item).not_to be_valid
-      expect(cart_item.errors[:quantity]).to include('must be greater than 0')
+      expect(cart_item.errors[:quantity]).to include('must be greater than or equal to 0')
     end
 
     it 'defaults quantity to 1' do
@@ -85,6 +84,11 @@ RSpec.describe CartItem, type: :model do
     it 'handles zero price products' do
       free_product = Product.create!(name: 'Free Product', category: 'Free', default_price: 0, quantity: 10)
       cart_item = CartItem.create!(cart: cart, product: free_product, quantity: 5)
+      expect(cart_item.subtotal).to eq(0)
+    end
+
+    it 'calculates subtotal for zero quantity' do
+      cart_item = CartItem.create!(cart: cart, product: product, quantity: 0)
       expect(cart_item.subtotal).to eq(0)
     end
 

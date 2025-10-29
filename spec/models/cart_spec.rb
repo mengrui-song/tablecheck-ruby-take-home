@@ -41,13 +41,13 @@ RSpec.describe Cart, type: :model do
     end
   end
 
-  describe '#add_product' do
+  describe '#update_product' do
     let(:user) { User.create!(email: 'test@example.com', name: 'Test User') }
     let(:cart) { Cart.create!(user: user) }
     let(:product) { Product.create!(name: 'Test Product', category: 'Test', default_price: 100, quantity: 50) }
 
     it 'adds a new product to the cart' do
-      expect { cart.add_product(product.id, 2) }.to change { cart.distinct_products_count }.by(1)
+      expect { cart.update_product(product.id, 2) }.to change { cart.distinct_products_count }.by(1)
 
       cart_item = cart.cart_items.first
       expect(cart_item.product).to eq(product)
@@ -55,42 +55,52 @@ RSpec.describe Cart, type: :model do
     end
 
     it 'defaults quantity to 1 when not specified' do
-      cart.add_product(product.id)
+      cart.update_product(product.id)
 
       cart_item = cart.cart_items.first
       expect(cart_item.quantity).to eq(1)
     end
 
-    it 'increases quantity for existing product' do
-      cart.add_product(product.id, 2)
-      cart.add_product(product.id, 3)
+    it 'updates quantity for existing product' do
+      cart.update_product(product.id, 2)
+      cart.update_product(product.id, 3)
 
       expect(cart.distinct_products_count).to eq(1)
       cart_item = cart.cart_items.first
-      expect(cart_item.quantity).to eq(5)
+      expect(cart_item.quantity).to eq(3)
     end
 
     it 'handles multiple different products' do
       product2 = Product.create!(name: 'Test Product 2', category: 'Test', default_price: 200, quantity: 30)
 
-      cart.add_product(product.id, 2)
-      cart.add_product(product2.id, 1)
+      cart.update_product(product.id, 2)
+      cart.update_product(product2.id, 1)
 
       expect(cart.distinct_products_count).to eq(2)
       expect(cart.cart_items.map(&:product)).to contain_exactly(product, product2)
     end
 
-    it 'handles zero quantity addition' do
-      expect { cart.add_product(product.id, 0) }.to raise_error(ArgumentError, "Quantity must be greater than 0")
+    it 'removes item when adding zero quantity to non-existing item' do
+      expect { cart.update_product(product.id, 0) }.not_to change { cart.distinct_products_count }
+      expect(cart.cart_items).to be_empty
     end
 
-    it 'handles negative quantity addition' do
-      expect { cart.add_product(product.id, -1) }.to raise_error(ArgumentError, "Quantity must be greater than 0")
+    it 'removes existing item when adding zero quantity' do
+      cart.update_product(product.id, 2)
+      expect(cart.distinct_products_count).to eq(1)
+
+      cart.update_product(product.id, 0)
+      expect(cart.distinct_products_count).to eq(0)
+      expect(cart.cart_items).to be_empty
+    end
+
+    it 'handles negative quantity addition to reduce item quantity' do
+      expect { cart.update_product(product.id, -1) }.to raise_error(ArgumentError, "Quantity cannot be negative")
     end
 
     it 'handles invalid product_id' do
       invalid_id = BSON::ObjectId.new
-      expect { cart.add_product(invalid_id, 2) }.to raise_error(ArgumentError, "Product with id #{invalid_id} does not exist")
+      expect { cart.update_product(invalid_id, 2) }.to raise_error(ArgumentError, "Product with id #{invalid_id} does not exist")
     end
   end
 
@@ -161,13 +171,13 @@ RSpec.describe Cart, type: :model do
       it 'returns number of different products in cart' do
         expect(cart.distinct_products_count).to eq(0)
 
-        cart.add_product(product1.id, 3)
+        cart.update_product(product1.id, 3)
         expect(cart.distinct_products_count).to eq(1)
 
-        cart.add_product(product2.id, 2)
+        cart.update_product(product2.id, 2)
         expect(cart.distinct_products_count).to eq(2)
 
-        cart.add_product(product1.id, 1) # Adding more of existing product
+        cart.update_product(product1.id, 1) # Adding more of existing product
         expect(cart.distinct_products_count).to eq(2)
       end
     end
@@ -176,14 +186,14 @@ RSpec.describe Cart, type: :model do
       it 'returns total quantity of all items in cart' do
         expect(cart.total_items_count).to eq(0)
 
-        cart.add_product(product1.id, 3)
+        cart.update_product(product1.id, 3)
         expect(cart.total_items_count).to eq(3)
 
-        cart.add_product(product2.id, 2)
+        cart.update_product(product2.id, 2)
         expect(cart.total_items_count).to eq(5)
 
-        cart.add_product(product1.id, 1) # Adding more of existing product
-        expect(cart.total_items_count).to eq(6)
+        cart.update_product(product1.id, 1)
+        expect(cart.total_items_count).to eq(3)
       end
     end
 
@@ -193,7 +203,7 @@ RSpec.describe Cart, type: :model do
       end
 
       it 'returns false for cart with items' do
-        cart.add_product(product1.id, 1)
+        cart.update_product(product1.id, 1)
         expect(cart.empty?).to be false
       end
     end

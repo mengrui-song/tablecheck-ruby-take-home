@@ -5,23 +5,28 @@ class Cart
   belongs_to :user
   has_many :cart_items, dependent: :destroy
 
-  def add_product(product_id, qty = 1)
+  def update_product(product_id, qty = 1)
     # Validate quantity
-    if qty <= 0
-      raise ArgumentError, "Quantity must be greater than 0"
+    if qty < 0
+      raise ArgumentError, "Quantity cannot be negative"
     end
     # Validate product existence
     product = Product.where(id: product_id).first
     unless product
       raise ArgumentError, "Product with id #{product_id} does not exist"
     end
+
     item = cart_items.find_or_initialize_by(product_id: product_id)
-    if item.persisted?
-      item.quantity += qty
+
+    if qty == 0
+      # Remove item from cart if quantity is 0
+      item.destroy if item.persisted?
     else
+      # Update or set the quantity
       item.quantity = qty
+      item.save!
     end
-    item.save
+
     # Ensure cart_items association is reloaded to reflect changes
     reload
   end

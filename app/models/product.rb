@@ -17,13 +17,9 @@ class Product
   validate :quantity_not_below_pending_orders
 
   def current_price
-    return dynamic_price if dynamic_price.present?
-    calculate_dynamic_price
+    dynamic_price.present? ? dynamic_price : default_price
   end
 
-  def calculate_dynamic_price
-    default_price
-  end
 
   private
 

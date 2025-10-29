@@ -20,7 +20,7 @@ class ProductsController < ApplicationController
       id: product.id.to_s,
       name: product.name,
       category: product.category,
-      price: product.current_price,
+      dynamic_price: product.current_price,
       quantity: product.quantity
     }
   end

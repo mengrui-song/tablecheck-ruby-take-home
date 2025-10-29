@@ -1,19 +1,19 @@
 class DynamicPricing::CompetitorAnalyzer
   attr_reader :product
 
-  def initialize(product)
+  def initialize(product, competitor_data = nil)
     @product = product
+    @competitor_data = competitor_data
   end
 
-  def analyze_and_adjust(our_price)
-    adjustment = calculate_competitor_adjustment(our_price)
+  def analyze_and_adjust(our_price, competitor_data = nil)
+    adjustment = calculate_competitor_adjustment(our_price, competitor_data)
     apply_competitor_adjustment(our_price, adjustment)
   end
 
   private
 
-  def calculate_competitor_adjustment(our_price)
-    competitor_data = CompetitorPricingApiClient.fetch_prices
+  def calculate_competitor_adjustment(our_price, competitor_data = nil)
     return { type: :none, amount: 0 } unless competitor_data
 
     competitor_item = competitor_data.find { |item| item["name"]&.downcase == product.name&.downcase }

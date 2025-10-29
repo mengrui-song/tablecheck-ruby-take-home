@@ -193,6 +193,28 @@ RSpec.describe Product, type: :model do
     end
   end
 
+  describe '#current_price' do
+    it 'returns dynamic_price when present' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10, dynamic_price: 150)
+      expect(product.current_price).to eq(150)
+    end
+
+    it 'returns default_price when dynamic_price is nil' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10, dynamic_price: nil)
+      expect(product.current_price).to eq(100)
+    end
+
+    it 'returns default_price when dynamic_price is not set' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10)
+      expect(product.current_price).to eq(100)
+    end
+
+    it 'returns 0 when dynamic_price is 0' do
+      product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10, dynamic_price: 0)
+      expect(product.current_price).to eq(0)
+    end
+  end
+
   describe 'last_demand_multiplier field' do
     it 'has default value of 1.0' do
       product = Product.new(name: 'Test Product', category: 'Test', default_price: 100, quantity: 10)

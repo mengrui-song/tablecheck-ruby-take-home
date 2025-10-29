@@ -7,7 +7,7 @@ class CartItem
 
   field :quantity, type: Integer, default: 1
 
-  validates :quantity, numericality: { greater_than: 0 }
+  validates :quantity, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   def subtotal
     quantity * product.default_price

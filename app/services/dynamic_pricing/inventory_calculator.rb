@@ -7,8 +7,11 @@ class DynamicPricing::InventoryCalculator
     @product = product
   end
 
-  def calculate_multiplier
+  def calculate_multiplier(demand_multiplier = nil)
     return 1.0 if product.quantity.nil? || product.quantity == 0
+
+    # Only apply inventory adjustment when there's actual demand activity
+    return 1.0 if demand_multiplier && demand_multiplier == 1.0
 
     base_multiplier = BigDecimal(quantity_multiplier.to_s)
     category_multiplier = BigDecimal(category_adjustment.to_s)

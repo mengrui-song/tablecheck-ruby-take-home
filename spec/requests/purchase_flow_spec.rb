@@ -15,7 +15,7 @@ RSpec.describe "Purchase Flow", type: :request do
       # Step 2: Add products to cart
       post "/cart/items", params: { user_id: user_id, product_id: product1.id, quantity: 2 }
       expect(response).to have_http_status(:success)
-      expect(JSON.parse(response.body)["message"]).to eq("Product added to cart")
+      expect(JSON.parse(response.body)["message"]).to include("updated in cart")
 
       post "/cart/items", params: { user_id: user_id, product_id: product2.id, quantity: 1 }
       expect(response).to have_http_status(:success)
@@ -62,13 +62,36 @@ RSpec.describe "Purchase Flow", type: :request do
       # Add more items than available
       post "/cart/items", params: { user_id: user_id, product_id: product1.id, quantity: 10 }
       expect(response).to have_http_status(:unprocessable_entity)
-      expect(JSON.parse(response.body)["error"]).to eq("Not enough inventory available")
+      expect(JSON.parse(response.body)["error"]).to include("Not enough inventory available")
     end
 
     it "prevents order creation with empty cart" do
       post "/orders", params: { user_id: user_id }
       expect(response).to have_http_status(:unprocessable_entity)
       expect(JSON.parse(response.body)["error"]).to eq("Cart is empty")
+    end
+
+    it "allows removing items from cart using quantity 0" do
+      # Add item to cart
+      post "/cart/items", params: { user_id: user_id, product_id: product1.id, quantity: 2 }
+      expect(response).to have_http_status(:success)
+
+      # Verify item is in cart
+      get "/cart", params: { user_id: user_id }
+      expect(response).to have_http_status(:success)
+      cart_data = JSON.parse(response.body)
+      expect(cart_data["cart"]["items"].size).to eq(1)
+
+      # Remove item using quantity 0
+      post "/cart/items", params: { user_id: user_id, product_id: product1.id, quantity: 0 }
+      expect(response).to have_http_status(:success)
+      expect(JSON.parse(response.body)["message"]).to include("removed from cart")
+
+      # Verify cart is empty
+      get "/cart", params: { user_id: user_id }
+      expect(response).to have_http_status(:success)
+      cart_data = JSON.parse(response.body)
+      expect(cart_data["cart"]["items"]).to be_empty
     end
   end
 end

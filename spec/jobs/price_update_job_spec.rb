@@ -9,6 +9,16 @@ RSpec.describe PriceUpdateJob, type: :job do
   after do
     Sidekiq::Worker.clear_all
   end
+
+  def mock_competitor_data
+    {
+      "products" => [
+        { "name" => "Test Product 1", "price" => 120 },
+        { "name" => "Test Product 2", "price" => 950 },
+        { "name" => "Test Product 3", "price" => 85 }
+      ]
+    }
+  end
   let!(:products) do
     3.times.map do |i|
       Product.create!(
@@ -23,8 +33,11 @@ RSpec.describe PriceUpdateJob, type: :job do
 
   describe '#perform' do
     it 'updates prices for all products' do
+      # Mock the competitor pricing API fetch
+      allow(CompetitorPricingApiClient).to receive(:fetch_prices).and_return(mock_competitor_data)
+
       # Mock the dynamic pricing service to avoid external dependencies
-      allow_any_instance_of(DynamicPricingService).to receive(:calculate_dynamic_price)
+      allow_any_instance_of(DynamicPricingService).to receive(:calculate_dynamic_price).and_return(150)
 
       job = PriceUpdateJob.new
 
@@ -32,29 +45,42 @@ RSpec.describe PriceUpdateJob, type: :job do
     end
 
     it 'logs successful price updates' do
+      # Mock the competitor pricing API fetch
+      allow(CompetitorPricingApiClient).to receive(:fetch_prices).and_return(mock_competitor_data)
+
       # Set up products with different prices
       products.each_with_index do |product, index|
         product.update(dynamic_price: 10.0 + index)
       end
 
-      # Mock the service to simulate price changes
+      # Mock the service to return new prices without saving
       allow_any_instance_of(DynamicPricingService).to receive(:calculate_dynamic_price) do |service|
         product = service.instance_variable_get(:@product)
-        product.update(dynamic_price: product.dynamic_price + 5.0)
+        new_price = product.dynamic_price + 5.0
+        product.update(dynamic_price: new_price)
+        new_price
       end
 
-      expect(Rails.logger).to receive(:info).with(/Starting periodic price update job/)
-      expect(Rails.logger).to receive(:info).with(/Price update job completed/)
+      expect(Rails.logger).to receive(:info).with(/Starting periodic price update job/).ordered
+      expect(Rails.logger).to receive(:info).with("Fetched competitor data for pricing calculations")
 
-      products.each do |product|
+      products.each_with_index do |product, index|
+        old_price = 10.0 + index
+        new_price = old_price + 5.0
         expect(Rails.logger).to receive(:info)
-          .with(/Updated price for #{product.name}/)
+          .with("Updated price for #{product.name}: #{old_price.to_i} -> #{new_price}")
       end
+
+      expect(Rails.logger).to receive(:info).with("Executed bulk update for #{products.size} products")
+      expect(Rails.logger).to receive(:info).with(/Price update job completed/).ordered
 
       PriceUpdateJob.new.perform
     end
 
     it 'handles errors gracefully' do
+      # Mock the competitor pricing API fetch
+      allow(CompetitorPricingApiClient).to receive(:fetch_prices).and_return(mock_competitor_data)
+
       # Mock the service to raise an error for the first product
       allow_any_instance_of(DynamicPricingService).to receive(:calculate_dynamic_price) do |service|
         product = service.instance_variable_get(:@product)
@@ -62,8 +88,8 @@ RSpec.describe PriceUpdateJob, type: :job do
       end
 
       expect(Rails.logger).to receive(:error)
-        .with(/Failed to update price for product #{products.first.id}/)
-      expect(Sidekiq.logger).to receive(:error)
+        .with(/Failed to calculate price for product #{products.first.id}/)
+      expect(Sidekiq.logger).to receive(:error).with(anything)
 
       expect { PriceUpdateJob.new.perform }.not_to raise_error
     end

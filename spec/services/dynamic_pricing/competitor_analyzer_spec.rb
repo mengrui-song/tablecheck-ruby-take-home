@@ -22,15 +22,17 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
     let(:our_price) { 2000 }
     let(:adjustment) { { type: :reduce, amount: 1800, reason: "competitor_undercut" } }
 
+    let(:competitor_data) { [ { "name" => "Test Product", "price" => 1500 } ] }
+
     before do
-      allow(analyzer).to receive(:calculate_competitor_adjustment).with(our_price).and_return(adjustment)
+      allow(analyzer).to receive(:calculate_competitor_adjustment).with(our_price, competitor_data).and_return(adjustment)
       allow(analyzer).to receive(:apply_competitor_adjustment).with(our_price, adjustment).and_return(1800)
     end
 
     it 'calculates competitor adjustment and applies it' do
-      result = analyzer.analyze_and_adjust(our_price)
+      result = analyzer.analyze_and_adjust(our_price, competitor_data)
 
-      expect(analyzer).to have_received(:calculate_competitor_adjustment).with(our_price)
+      expect(analyzer).to have_received(:calculate_competitor_adjustment).with(our_price, competitor_data)
       expect(analyzer).to have_received(:apply_competitor_adjustment).with(our_price, adjustment)
       expect(result).to eq(1800)
     end
@@ -45,7 +47,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
       end
 
       it 'returns no adjustment' do
-        result = analyzer.send(:calculate_competitor_adjustment, our_price)
+        result = analyzer.send(:calculate_competitor_adjustment, our_price, nil)
         expect(result).to eq({ type: :none, amount: 0 })
       end
     end
@@ -72,7 +74,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
         end
 
         it 'returns no adjustment' do
-          result = analyzer.send(:calculate_competitor_adjustment, our_price)
+          result = analyzer.send(:calculate_competitor_adjustment, our_price, competitor_data)
           expect(result).to eq({ type: :none, amount: 0 })
         end
       end
@@ -81,7 +83,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
         let(:competitor_price) { nil }
 
         it 'returns no adjustment for nil price' do
-          result = analyzer.send(:calculate_competitor_adjustment, our_price)
+          result = analyzer.send(:calculate_competitor_adjustment, our_price, competitor_data)
           expect(result).to eq({ type: :none, amount: 0 })
         end
       end
@@ -90,7 +92,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
         let(:competitor_price) { 0 }
 
         it 'returns no adjustment' do
-          result = analyzer.send(:calculate_competitor_adjustment, our_price)
+          result = analyzer.send(:calculate_competitor_adjustment, our_price, competitor_data)
           expect(result).to eq({ type: :none, amount: 0 })
         end
       end
@@ -99,7 +101,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
         let(:competitor_price) { 1500 }  # our_price = 2000, difference = 33.33%
 
         it 'returns reduction adjustment' do
-          result = analyzer.send(:calculate_competitor_adjustment, our_price)
+          result = analyzer.send(:calculate_competitor_adjustment, our_price, competitor_data)
           expect(result[:type]).to eq(:reduce)
           expect(result[:amount]).to eq(competitor_price)
           expect(result[:reason]).to eq("competitor_undercut")
@@ -111,7 +113,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
         let(:competitor_price) { 2500 }  # our_price = 2000, difference = -20%
 
         it 'returns increase adjustment' do
-          result = analyzer.send(:calculate_competitor_adjustment, our_price)
+          result = analyzer.send(:calculate_competitor_adjustment, our_price, competitor_data)
           expect(result[:type]).to eq(:increase)
           expect(result[:amount]).to eq([ our_price * 1.05, competitor_price * 0.95 ].min.to_i)
           expect(result[:reason]).to eq("competitor_premium")
@@ -123,7 +125,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
         let(:competitor_price) { 1900 }  # our_price = 2000, difference = 5.26%
 
         it 'returns no adjustment' do
-          result = analyzer.send(:calculate_competitor_adjustment, our_price)
+          result = analyzer.send(:calculate_competitor_adjustment, our_price, competitor_data)
           expect(result[:type]).to eq(:none)
           expect(result[:amount]).to eq(0)
           expect(result[:reason]).to eq("competitive_range")
@@ -138,7 +140,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
         end
 
         it 'matches products regardless of case' do
-          result = analyzer.send(:calculate_competitor_adjustment, our_price)
+          result = analyzer.send(:calculate_competitor_adjustment, our_price, competitor_data)
           expect(result[:type]).to eq(:reduce)
         end
       end
@@ -208,7 +210,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
     end
 
     it 'processes the complete analysis and adjustment flow' do
-      result = analyzer.analyze_and_adjust(our_price)
+      result = analyzer.analyze_and_adjust(our_price, competitor_data)
 
       # Our price (2000) vs competitor (1500) = 33.33% difference
       # Should trigger reduction to competitor price (1500)
@@ -222,7 +224,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
       end
 
       it 'applies increase adjustment correctly' do
-        result = analyzer.analyze_and_adjust(our_price)
+        result = analyzer.analyze_and_adjust(our_price, competitor_data)
 
         # Our price (2000) vs competitor (2500) = -20% difference
         # Should trigger increase to min(2000 * 1.05, 2500 * 0.95) = min(2100, 2375) = 2100
@@ -236,7 +238,7 @@ RSpec.describe DynamicPricing::CompetitorAnalyzer, type: :service do
       end
 
       it 'returns original price unchanged' do
-        result = analyzer.analyze_and_adjust(our_price)
+        result = analyzer.analyze_and_adjust(our_price, competitor_data)
         expect(result).to eq(our_price)
       end
     end
