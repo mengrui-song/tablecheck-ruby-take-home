@@ -2,11 +2,14 @@
 # For now, prices can be updated manually or triggered via the job
 
 # Configuration for sidekiq-cron:
-Sidekiq::Cron::Job.create(
-  name: "Weekly Price Update Job",
-  cron: "0 9 * * 1", # Every Monday at 9:00 AM
-  class: "PriceUpdateJob"
-)
+# Only schedule in production environment
+if Rails.env.production?
+  Sidekiq::Cron::Job.create(
+    name: "Weekly Price Update Job",
+    cron: "0 9 * * 1", # Every Monday at 9:00 AM
+    class: "PriceUpdateJob"
+  )
+end
 
 # Alternative: Add sidekiq-cron to Gemfile and configure here
 # Or use whenever gem for cron-based scheduling

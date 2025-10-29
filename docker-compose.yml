@@ -25,3 +25,14 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
+  sidekiq:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/rails
+    depends_on:
+      - mongo
+      - redis
+    entrypoint: ["/rails/bin/docker-entrypoint"]
+    command: ["bundle", "exec", "sidekiq"]
