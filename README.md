@@ -8,17 +8,20 @@
    - 2.2 [System Components](#22-system-components)
    - 2.3 [Dynamic Pricing Logic](#23-dynamic-pricing-logic)
    - 2.4 [Background Processing](#24-background-processing)
+   - 2.5 [Race Condition Prevention & Order Management](#25-race-condition-prevention--order-management)
 3. [Setup and Installation](#3-setup-and-installation)
    - 3.1 [Prerequisites](#31-prerequisites)
    - 3.2 [Installation Steps](#32-installation-steps)
 4. [Running the Application](#4-running-the-application)
 5. [Running Tests](#5-running-tests)
 6. [API Reference](#6-api-reference)
-   - 6.1 [Endpoints](#61-endpoints)
-   - 6.2 [Notes](#62-notes)
+   - 6.1 [Products](#61-products)
+   - 6.2 [Cart Management](#62-cart-management)
+   - 6.3 [Orders](#63-orders)
 7. [Example Postman Workflow](#7-example-postman-workflow)
    - 7.1 [How to Test the App Manually](#71-how-to-test-the-app-manually)
    - 7.2 [Detailed Steps](#72-detailed-steps)
+   - 7.3 [Testing Race Condition Prevention](#73-testing-race-condition-prevention)
 8. [Troubleshooting](#8-troubleshooting)
 9. [Dynamic Pricing Business Logic](#9-dynamic-pricing-business-logic)
    - 9.1 [Overview](#91-overview)
@@ -37,11 +40,12 @@
 ## 2. Architecture & Key Components
 
 ### 2.1 Project Structure
+
 - `app/` — Rails application code (models, controllers, services, jobs)
   - `controllers/` — API endpoints (products, carts, orders)
   - `models/` — Data models (Product, Cart, Order, User)
   - `services/` — Business logic (DynamicPricingService, competitor API client)
-  - `jobs/` — Background jobs (PriceUpdateJob for Sidekiq)
+  - `jobs/` — Background jobs (PriceUpdateJob, OrderCleanupJob for Sidekiq)
 - `spec/` — RSpec test files with comprehensive coverage
 - `config/` — Configuration (MongoDB, Sidekiq, routes, environments)
 - `data/` — CSV inventory file and MongoDB data
@@ -49,12 +53,21 @@
 - `docker-compose.yml` — Multi-container setup (app, MongoDB, Sidekiq)
 
 ### 2.2 System Components
+
 - **Products**: Core catalog with dynamic pricing (default_price, dynamic_price, inventory tracking)
 - **Cart**: User shopping cart with cart items that validates inventory before adding products
 - **Orders**: Purchase records that atomically reduce inventory and create order items with locked-in prices
+  - **Race Condition Prevention**: Uses MongoDB atomic operations (`find_one_and_update`) to prevent overselling
+  - **Order Status Management**: Four distinct statuses for clear order tracking
+    - `pending`: Order placed successfully, awaiting completion
+    - `paid`: Order completed successfully
+    - `failed`: Order failed due to insufficient inventory (no inventory impact)
+    - `expired`: Order was pending too long and timed out (inventory restored)
+  - **Automatic Cleanup**: `OrderCleanupJob` runs every minute to handle expired orders and restore inventory
 - **Dynamic Pricing**: Multi-factor pricing engine that adjusts prices based on demand patterns, inventory levels, and competitor data
 
 ### 2.3 Dynamic Pricing Logic
+
 The system automatically adjusts prices using a 4-step process:
 
 1. **Demand Analysis** - Compares current vs previous week activity (purchases + carts)
@@ -65,40 +78,73 @@ The system automatically adjusts prices using a 4-step process:
 _For detailed business rules, see the [Dynamic Pricing Business Logic](#9-dynamic-pricing-business-logic) below._
 
 ### 2.4 Background Processing
-- **PriceUpdateJob**: Sidekiq job that periodically recalculates all product prices using demand analysis, inventory levels, and external competitor pricing API
 
-**Flow**: User adds products to cart → Places order (inventory reduced, prices locked) → Background job analyzes demand and updates dynamic prices for future purchases
+- **PriceUpdateJob**: Sidekiq job that runs weekly (every Monday at 9:00 AM) to recalculate all product prices using demand analysis, inventory levels, and external competitor pricing API
+- **OrderCleanupJob**: Sidekiq job that runs every minute to clean up expired orders
+  - Finds orders with status `pending` and `expires_at` < current time
+  - Restores inventory for expired orders (returns reserved stock to available pool)
+  - Marks expired orders as `expired` status
+  - Does NOT affect `failed` orders (they never reduced inventory)
+
+**Flow**: User adds products to cart → Places order (atomic inventory locking + 15min expiration) → Background job analyzes demand and updates dynamic prices for future purchases
+
+### 2.5 Race Condition Prevention & Order Management
+
+#### Atomic Inventory Operations
+
+- **Problem**: Multiple users trying to purchase the last item simultaneously could cause overselling
+- **Solution**: MongoDB's `find_one_and_update` with conditional filters ensures only one transaction succeeds
+- **Implementation**: Inventory check and decrement happen atomically in a single database operation
+
+#### Order Expiration System
+
+- **15-Minute Window**: Orders expire 15 minutes after placement if not completed
+- **Automatic Cleanup**: `OrderCleanupJob` runs every minute to:
+  - Identify expired pending orders
+  - Return reserved inventory to available stock
+  - Mark orders as "expired" status
+- **Prevents Stock Lockup**: Ensures inventory doesn't remain locked indefinitely
 
 ```mermaid
 graph TD
-    A[User] --> B[Add to Cart]
-    B --> C{Inventory Check}
-    C -->|Available| D[Cart Updated]
-    C -->|Insufficient| E[Error: Not enough inventory]
+    A[User A] --> B[Add to Cart]
+    A2[User B] --> B2[Add to Cart]
 
-    D --> F[Place Order]
-    F --> G{Final Inventory Check}
-    G -->|Available| H[Order Created]
-    G -->|Insufficient| I[Error: Inventory changed]
+    B --> C[Create Order - Status: pending]
+    B2 --> C2[Create Order - Status: pending]
 
-    H --> J[Reduce Inventory]
-    H --> K[Lock Prices in Order]
+    C --> D[Call order.place!]
+    C2 --> D2[Call order.place!]
 
-    L[PriceUpdateJob] --> M[Analyze Demand]
-    M --> N[Check Inventory Levels]
-    N --> O[Fetch Competitor Prices]
-    O --> P[Calculate New Dynamic Prices]
-    P --> Q[Update Product Prices]
+    D --> E{Atomic Inventory Check & Decrement}
+    D2 --> E2{Atomic Inventory Check & Decrement}
 
-    Q -.-> B
+    E -->|✓ Success| F[Reserve Inventory]
+    E -->|✗ Insufficient| G[Mark as failed]
+    E2 -->|✗ Already Reserved| G2[Mark as failed]
 
-    style L fill:#f9f,stroke:#333,stroke-width:2px
-    style P fill:#bbf,stroke:#333,stroke-width:2px
+    F --> H[Create Order Items]
+    H --> I[Auto-complete: Status = paid]
+
+    G --> J[Raise Exception]
+    G2 --> J2[Raise Exception]
+
+    K[Background: OrderCleanupJob] --> L{Find expired pending orders}
+    L --> M[Restore Inventory + Mark expired]
+
+    N[PriceUpdateJob] --> O[Analyze Demand]
+    O --> P[Update Prices Weekly]
+
+    style I fill:#90EE90,stroke:#333,stroke-width:2px
+    style G fill:#FFB6C1,stroke:#333,stroke-width:2px
+    style G2 fill:#FFB6C1,stroke:#333,stroke-width:2px
+    style K fill:#87CEEB,stroke:#333,stroke-width:2px
 ```
 
 ## 3. Setup and Installation
 
 ### 3.1 Prerequisites
+
 - Ruby 3.3.5
 - Bundler (`gem install bundler`)
 - MongoDB
@@ -106,28 +152,38 @@ graph TD
 
 ### 3.2 Installation Steps
 
-1. **Clone repository**
+- **Clone repository**
 
-   ```bash
-   git clone https://github.com/mengrui-song/tablecheck-ruby-take-home.git
-   cd tablecheck-ruby-take-home
-   ```
+  ```bash
+  git clone https://github.com/mengrui-song/tablecheck-ruby-take-home.git
+  cd tablecheck-ruby-take-home
+  ```
 
-2. **Install gems**
+- **Install gems**
 
-   ```bash
-   bundle install
-   ```
+  This is for running test not on docker
 
-3. **Set up environment variables**
+  ```bash
+  bundle install
+  ```
 
-   Copy the example environment file and configure the required settings:
+- **Set up environment variables**
 
-   ```bash
-   cp .env.example .env
-   ```
+  Copy the example environment file and configure the required settings:
 
-   Edit the `.env` file with the appropriate values. For API keys and configuration details, please refer to the [project documentation](https://docs.google.com/document/d/1cZEvCrywW8YNzLYtFU24rheLlntJy61668qkOCasIQY/edit?usp=sharing).
+  ```bash
+  cp .env.example .env
+  ```
+
+  Edit the `.env` file with the appropriate values. For API keys and configuration details, please refer to the [project documentation](https://docs.google.com/document/d/1cZEvCrywW8YNzLYtFU24rheLlntJy61668qkOCasIQY/edit?usp=sharing).
+
+**Seed fake order data for the past 2 weeks (optional — creates test orders & users)**
+
+This command will clean up all existing data, import products from `inventory.csv`, create 100 users, and generate 2 weeks of order history for dynamic pricing testing.
+
+```bash
+docker compose exec app rails db:seed_last_week
+```
 
 ## 4. Running the Application
 
@@ -159,33 +215,28 @@ To manually import or refresh product data:
 docker compose exec app rails products:import
 ```
 
-**Sample `.env` configuration:**
+**Run job to update dynamic prices (manual trigger)**
+
+You can trigger the weekly price-update job manually if you want to test the dynamic pricing logic immediately:
 
 ```bash
-# Competitor Pricing API Configuration
-COMPETITOR_API_BASE_URL=https://sinatra-pricing-api.fly.dev
-COMPETITOR_API_KEY=your_api_key_here
-REDIS_URL=redis://redis:6379/0
+docker compose exec app rails runner "PriceUpdateJob.new.perform"
+```
+
+**Run job to clean up orders expired(manual trigger)**
+
+You can trigger the order clean up job manually if you want to test it immediately:
+
+```bash
+docker compose exec app rails runner "OrderCleanupJob.new.perform"
 ```
 
 ## 5. Running Tests
 
-**RSpec:**
+**All tests:**
 
 ```bash
 bundle exec rspec
-```
-
-**Rake (if using MiniTest):**
-
-```bash
-bundle exec rake test
-```
-
-**Prepare test database:**
-
-```bash
-bundle exec rake db:test:prepare
 ```
 
 **RuboCop (linting):**
@@ -194,99 +245,90 @@ bundle exec rake db:test:prepare
 bundle exec rubocop
 ```
 
-**Seed fake order data for the past 2 weeks:**
-
-This command will clean up all existing data, import products from `inventory.csv`, create 100 users, and generate 2 weeks of order history for dynamic pricing testing.
-
-```bash
-docker compose exec app rails db:seed_last_week
-```
-
-**Run job to update dynamic prices:**
-
-```bash
-docker compose exec app rails runner "PriceUpdateJob.new.perform"
-```
 ## 6. API Reference
 
 ### Base URL
+
 `http://localhost:3000`
 
-### 6.1 Endpoints
-
-#### 1. Products
+### 6.1. Products
 
 - **List all products**: `GET /products`
 - **Show specific product**: `GET /products/{id}`
 
-#### 2. Cart Management
+### 6.2. Cart Management
 
 - **Add to cart**: `POST /cart/items`
   ```json
   {
-    "product_id": "product_id",
+    "product_id": "{product_id}",
     "quantity": 2,
-    "user_id": "1"
+    "user_id": "{user_id}"
   }
   ```
 - **Update cart item**: `PATCH /cart/items/{id}`
   ```json
   {
-    "quantity": 5
+    "quantity": 5,
+    "user_id": "{user_id}"
   }
   ```
 - **Remove cart item**: `DELETE /cart/items/{id}`
+  ```json
+  {
+    "user_id": "{user_id}"
+  }
+  ```
 - **View cart**: `GET /cart?user_id={user_id}`
 - **Clear cart**: `DELETE /cart?user_id={user_id}`
 
-#### 3. Orders
+### 6.3. Orders
 
 - **Place order**: `POST /orders`
   ```json
   {
-    "user_id": "1"
+    "user_id": "{user_id}"
   }
   ```
 - **View orders**: `GET /orders?user_id={user_id}`
 - **View specific order**: `GET /orders/{id}?user_id={user_id}`
 
-#### 4. Dynamic Pricing
+## 7. Example Postman Test Workflow
 
-- **Trigger price update**:
-  ```bash
-  docker-compose exec app rails runner "PriceUpdateJob.new.perform"
-  ```
-- **Verify updated prices**: `GET /products/{id}` (check dynamic_price field)
-
-### 6.2 Notes
-- **Product IDs**: MongoDB ObjectIds (24-character hex strings)
-- **Currency**: Japanese Yen (¥) as whole numbers
-- **Authentication**: Simplified with `user_id` parameter
-
-## 7. Example Postman Workflow
-
-### 7.1 How to Test the App Manually
+### 7.1 Preparation
 
 1. **Import products**: Start app (products auto-import from CSV)
-2. **Add to cart**: Add products with inventory validation
-3. **Place order**: Create order (reduces inventory, locks prices)
-4. **Trigger price job**: Run dynamic pricing calculation
-5. **Verify updates**: Check if prices changed based on demand
+```bash
+docker compose up
+```
+2. **Create a user**
+```bash
+docker compose run app rails c
+```
 
-### 7.2 Detailed Steps
+```ruby
+# create  a test user
+User.create(email: "tablecheck.gmail.com", name: "tablecheck")
 
-> **Note**: Replace `{product1_id}`, `{product2_id}`, and other placeholders with actual values from your product list. Use the "List All Products" endpoint to get available products and their details.
+# check the user_id
+user_id
+```
 
-#### 1. Product Management
+3. **Prepare 2 products**
 
-**List All Products**
+```ruby
+product1 = Product.first
+product2 = Product.second
+```
+### 7.2 Product Management
+
+**1. List All Products**
 
 - **Method**: GET
 - **URL**: `http://localhost:3000/products`
 - **Expected Response**: Array of products with id, name, category, price, quantity
-- **Note**: Choose any two products from this list to use as Product1 and Product2 in the following examples
 
-**Show Specific Product**
+**2. Show Specific Product**
 
 - **Method**: GET
 - **URL**: `http://localhost:3000/products/{product1_id}`
@@ -301,9 +343,9 @@ docker compose exec app rails runner "PriceUpdateJob.new.perform"
   }
   ```
 
-#### 2. Cart and Order Management
+### 7.3 Cart and Order Management
 
-**Add Product1 to Cart**
+**1. Add Product1 to Cart**
 
 - **Method**: POST
 - **URL**: `http://localhost:3000/cart/items`
@@ -312,12 +354,12 @@ docker compose exec app rails runner "PriceUpdateJob.new.perform"
   ```json
   {
     "product_id": "{product1_id}",
-    "quantity": "{valid_quantity}"
-    "user_id": "1"
+    "quantity": "{valid_quantity}",
+    "user_id": "{user_id}"
   }
   ```
 
-**Add Product2 to Cart (Excessive Quantity)**
+**2. Add Product2 to Cart with Excessive Quantity**
 
 - **Method**: POST
 - **URL**: `http://localhost:3000/cart/items`
@@ -327,12 +369,12 @@ docker compose exec app rails runner "PriceUpdateJob.new.perform"
   {
     "product_id": "{product2_id}",
     "quantity": "{quantity_exceeding_inventory}",
-    "user_id": "1"
+    "user_id": "user_id"
   }
   ```
-- **Expected Message**: "Not enough inventory available"
+- **Expected Message**: "Not enough inventory available for {product_name}"
 
-**Add Product2 to Cart (Valid Quantity)**
+**3. Add Product2 to Cart with Valid Quantity**
 
 - **Method**: POST
 - **URL**: `http://localhost:3000/cart/items`
@@ -342,7 +384,7 @@ docker compose exec app rails runner "PriceUpdateJob.new.perform"
   {
     "product_id": "{product2_id}",
     "quantity": "{valid_quantity}",
-    "user_id": "1"
+    "user_id": "user_id"
   }
   ```
 - **Expected Response**:
@@ -359,7 +401,7 @@ docker compose exec app rails runner "PriceUpdateJob.new.perform"
             "name": "Product1 Name",
             "price": "product1_price"
           },
-          "quantity": 30,
+          "quantity": "valid_quantity",
           "subtotal": "product1_subtotal"
         },
         {
@@ -378,7 +420,7 @@ docker compose exec app rails runner "PriceUpdateJob.new.perform"
   }
   ```
 
-**Place Order**
+**4. Place Order**
 
 - **Method**: POST
 - **URL**: `http://localhost:3000/orders`
@@ -386,10 +428,10 @@ docker compose exec app rails runner "PriceUpdateJob.new.perform"
 - **Body**:
   ```json
   {
-    "user_id": "1"
+    "user_id": "user_id"
   }
   ```
-- **Expected Message**: "Order success"
+- **Expected Message**: "Order placed successfully"
 
 **Verify Inventory Changes**
 
@@ -400,38 +442,99 @@ docker compose exec app rails runner "PriceUpdateJob.new.perform"
 - **URL**: `http://localhost:3000/products/{product2_id}`
 - **Expected**: Product2 quantity should be reduced by the ordered amount
 
-#### 3. Dynamic Pricing
+### 7.4. Dynamic Pricing
 
-**Trigger Price Update Job**
+**1. Run Seed to Create Order Histories**
 
-- **Method 1**: Execute directly via Rails runner (recommended for testing)
+Note: The dynamic pricing logic requires order history to calcualte the demand, so make sure seed the order histories bedore check the price update job.
 
+```bash
+docker compose exec app rails db:seed_last_week
+```
+
+
+**2. Trigger Price Update Job**
+
+You can check the prices are updated by running the following job.
   ```bash
   docker-compose exec app rails runner "PriceUpdateJob.new.perform"
   ```
 
-- **Method 2**: Queue job via Sidekiq (asynchronous)
 
+
+### 7.5 Testing Race Condition Prevention
+
+**Scenario**: Test concurrent purchase attempts on limited inventory
+
+**1. Prepare user and product for test**:
+
+   ```bash
+   docker compose run app rails c
+   ```
+   ```ruby
+   product1.update(quantity: 1)
+   usera = User.create(email: "usera@example.com", name: "usera")
+   userb = User.create(email: "userb@example.com", name: "userb")
+   ```
+
+**2. Add product to two different users' carts simultaneously**:
+
+   ```bash
+   // User A cart
+   POST /cart/items
+   {
+     "user_id": "user_a_id",
+     "product_id": "{product1_id}",
+     "quantity": 1
+   }
+
+   // User B cart
+   POST /cart/items
+   {
+     "user_id": "user_b_id",
+     "product_id": "{product1_id}",
+     "quantity": 1
+   }
+   ```
+
+**3. Place orders quickly** (both should work at cart level):
+```bash
+curl -X POST http://localhost:3000/orders -H "Content-Type: application/json" -d '{"user_id":"user_a_id"}' &
+curl -X POST http://localhost:3000/orders -H "Content-Type: application/json" -d '{"user_id":"user_b_id"}' &
+wait
+ ```
+```bash
+curl -X POST http://localhost:3000/orders -H "Content-Type: application/json" -d '{"user_id":"69022a2820b633ca4f4eb1bb"}' &
+curl -X POST http://localhost:3000/orders -H "Content-Type: application/json" -d '{"user_id":"69022a2820b633ca4f4eb1bc"}' &
+wait
+ ```
+
+**4. Expected Results**:
+
+   - ✅ User A: Order succeeds (status: "paid")
+   - ❌ User B: Order fails with "Not enough inventory" error
+   - 🔍 Product quantity becomes 0 (not negative)
+
+   ```bash
+   docker compose run app rails c
+   ```
+   ```ruby
+   usera.orders
+   ### [#<Order _id: 69022c260379c68974f1eae9, created_at: 2025-10-29 15:00:54.355 UTC, updated_at: 2025-10-29 15:00:54.417 UTC, user_id: BSON::ObjectId('69022a2820b633ca4f4eb1bb'), status: "paid", total_price: 2404, expires_at: nil>]
+   userb.orders
+   ### userb.orders[#<Order _id: 69022c260379c68974f1eae8, created_at: 2025-10-29 15:00:54.352 UTC, updated_at: 2025-10-29 15:00:54.352 UTC, user_id: BSON::ObjectId('69022a2820b633ca4f4eb1bc'), status: "pending", total_price: 0, expires_at: 2025-10-29 15:15:54.351 UTC>]
+   product1.reload.quantity
+   ### 0
+   ```
+  After 15 minutes from placing the order,
+  run `docker compose exec app rails runner "OrderCleanupJob.new.perform" ` to clean up the orders.
+
+  Check the order is expired.
   ```bash
-  docker-compose exec app rails runner "PriceUpdateJob.perform_async"
+  reload!
+  userb.orders
   ```
-
-- **Method 3**: Via Rails console
-  ```bash
-  docker-compose exec app rails c
-  # In Rails console:
-  PriceUpdateJob.new.perform
-  ```
-
-**Check Updated Prices**
-
-- **Method**: GET
-- **URL**: `http://localhost:3000/products/{product1_id}`
-- **Expected**: Check if `price` field has been updated based on demand
-
-- **Method**: GET
-- **URL**: `http://localhost:3000/products/{product2_id}`
-- **Expected**: Check if `price` field has been updated based on demand
+**4. Run**:
 
 ### Notes
 
@@ -447,12 +550,14 @@ docker compose exec app rails runner "PriceUpdateJob.new.perform"
 - **Database connection issues**: Verify credentials in `mongoid.yml`
 - **Postman request failures**: Ensure Docker containers are running with `docker-compose ps`
 
-## 9. Dynamic Pricing Business Logic
+## 9. Dynamic Pricing Business Logic Explaination
 
 ### 9.1 Overview
+
 This system automatically adjusts product prices based on demand trends, inventory levels, and competitor prices, while maintaining profitability and market competitiveness.
 
 ### 9.2 Demand-Based Adjustment
+
 - **Data Requirement**: Minimum 10 transactions per week (insufficient data = no price change)
 - **Growth Calculation**: Compares current week vs previous week demand (purchases + cart additions)
 - **Weighted Scoring**: Purchase growth weighted more heavily than cart additions
@@ -464,6 +569,7 @@ This system automatically adjusts product prices based on demand trends, invento
 - **Smoothing**: Limits changes to ±15% per adjustment, overall 0.7x to 1.5x original
 
 ### 9.3 Inventory-Based Adjustment
+
 - **Low stock** (≤50 units) → +30% increase
 - **High stock** (>250 units) → -10% discount
 - **Category Modifiers**:
@@ -473,12 +579,14 @@ This system automatically adjusts product prices based on demand trends, invento
 - **Skip Conditions**: Stable demand (multiplier = 1.0) or missing stock data
 
 ### 9.4 Competitor-Based Adjustment
+
 - **Price too high** (>10% above competitor) → reduce to within 20% of competitor
 - **Price too low** (>5% below competitor) → increase up to 5%
 - **Competitive range** (±5-10%) → no change
 - **Goal**: Competitive alignment without price wars
 
 ### 9.5 Price Boundaries & Automation
+
 - **Final Bounds**: 80% to 150% of default price
 - **Currency**: Whole yen (¥) values only
 - **Schedule**: Weekly Sidekiq job, Mondays at 9:00 AM
@@ -487,6 +595,6 @@ This system automatically adjusts product prices based on demand trends, invento
 
 ## 10. Future Improvements
 
-- Add rate limiting for competitor API requests
-- Implement authentication (JWT)
-- Cache price calculations for large catalogs
+- **Authentication**: Implement JWT-based user authentication system
+- **Error Handling**: Replace generic `raise` statements with custom exception classes for better error categorization and handling
+- **Performance**: Cache price calculations for large catalogs to reduce computation overhead
