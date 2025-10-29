@@ -11,9 +11,12 @@ class PriceUpdateJob
     bulk_operations = []
 
     # Fetch competitor data once for all products
-    # competitor_data = fetch_competitor_data
-    competitor_data = nil
-    Rails.logger.info "Fetched competitor data for pricing calculations"
+    competitor_data = fetch_competitor_data
+    if competitor_data.nil?
+      Rails.logger.warn "No competitor data fetched; proceeding without competitor adjustments"
+    else
+      Rails.logger.info "Fetched competitor data for pricing calculations"
+    end
 
     # Process products in batches and collect bulk operations
     Product.all.batch_size(100).no_timeout.each do |product|
