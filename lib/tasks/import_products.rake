@@ -21,7 +21,7 @@ namespace :products do
 
       if product.new_record?
         product.quantity = attrs[:QTY].to_i
-        product.default_price = attrs[:DEFAULT_PRICE].to_f
+        product.default_price = attrs[:DEFAULT_PRICE].to_i
 
         begin
           product.save!
@@ -31,7 +31,7 @@ namespace :products do
       else
         # Check if QTY or DEFAULT_PRICE have changed
         new_quantity = attrs[:QTY].to_i
-        new_default_price = attrs[:DEFAULT_PRICE]
+        new_default_price = attrs[:DEFAULT_PRICE].to_i
 
         if product.quantity != new_quantity || product.default_price != new_default_price
           product.quantity = new_quantity
