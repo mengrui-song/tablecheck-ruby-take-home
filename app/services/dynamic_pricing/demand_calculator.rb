@@ -10,6 +10,7 @@ class DynamicPricing::DemandCalculator
   def calculate_multiplier
     # Stage 1: Volume-based stability check: No adjustment if insufficient data: < 10 transactions
     current_week_stats = get_weekly_demand_stats(Date.current.beginning_of_week)
+
     return 1.0 if insufficient_transaction_volume?(current_week_stats)
 
     # Stage 2: Growth rate calculation - week-over-week comparison
@@ -69,14 +70,17 @@ class DynamicPricing::DemandCalculator
   def get_weekly_demand_stats(week_start)
     week_end = week_start.end_of_week
 
+    # Convert to time ranges for proper datetime comparison
+    time_range = week_start.beginning_of_day..week_end.end_of_day
+
     # Purchase data (completed orders)
-    paid_order_ids = Order.where(status: "paid", created_at: week_start..week_end).pluck(:id)
-    purchases = product.order_items.where(order_id: paid_order_ids).sum(:quantity)
+    paid_order_ids = Order.where(status: "paid", created_at: time_range).pluck(:id)
+    purchases = product.order_items.in(order_id: paid_order_ids).sum(:quantity)
 
     # Cart addition data
     cart_additions = CartItem.where(
       product: product,
-      created_at: week_start..week_end
+      created_at: time_range
     ).sum(:quantity)
 
     {
