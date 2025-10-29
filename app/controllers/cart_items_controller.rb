@@ -10,14 +10,25 @@ class CartItemsController < ApplicationController
     quantity = params[:quantity]&.to_i || 0
 
     # TODO: The inventory check and cart update are not atomic.
-    if product.quantity < quantity
-      render json: { error: "Not enough inventory available" }, status: :unprocessable_entity
+    if quantity > 0 && product.quantity < quantity
+      render json: {
+        error: "Not enough inventory available for #{product.name}",
+        cart: cart_json(@cart),
+        total_price: @cart.total_price
+      }, status: :unprocessable_entity
       return
     end
 
-    @cart.add_product(product.id, quantity)
+    @cart.update_product(product.id, quantity)
+
+    message = if quantity == 0
+                "#{product.name} removed from cart"
+    else
+                "#{product.name} updated in cart"
+    end
+
     render json: {
-      message: "Product added to cart",
+      message: message,
       cart: cart_json(@cart),
       total_price: @cart.total_price
     }
@@ -32,10 +43,14 @@ class CartItemsController < ApplicationController
 
     if new_quantity <= 0
       cart_item.destroy
-      message = "Item removed from cart"
+      message = "#{cart_item.product.name} removed from cart"
     else
       if cart_item.product.quantity < new_quantity
-        render json: { error: "Not enough inventory available" }, status: :unprocessable_entity
+        render json: {
+          error: "Not enough inventory available",
+          cart: cart_json(@cart),
+          total_price: @cart.total_price
+        }, status: :unprocessable_entity
         return
       end
 
