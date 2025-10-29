@@ -187,6 +187,19 @@ bundle exec rake db:test:prepare
 bundle exec rubocop
 ```
 
+**Seed fake order data for the past 2 weeks:**
+
+This command will clean up all existing data, import products from `inventory.csv`, create 100 users, and generate 2 weeks of order history for dynamic pricing testing.
+
+```bash
+docker compose exec app rails db:seed_last_week
+```
+
+**Run job to update dynamic prices:**
+
+```bash
+docker compose exec app rails runner "PriceUpdateJob.new.perform"
+```
 ## 6. API Reference
 
 ### Base URL
