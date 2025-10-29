@@ -19,7 +19,7 @@ class PriceUpdateJob
     Product.all.batch_size(100).no_timeout.each do |product|
       begin
         old_price = product.current_price
-        new_price = DynamicPricingService.new(product).calculate_dynamic_price(competitor_data: competitor_data)
+        new_price = DynamicPricingService.new(product).calculate_dynamic_price(save: false, competitor_data: competitor_data)
 
         if old_price != new_price
           bulk_operations << {
