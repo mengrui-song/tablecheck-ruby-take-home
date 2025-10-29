@@ -32,6 +32,8 @@ class PriceUpdateJob
             }
           }
           updated_count += 1
+          # The puts is for the assignment's checking purpose
+          puts "Updated price for #{product.name}: #{old_price} -> #{new_price}"
           Rails.logger.info "Updated price for #{product.name}: #{old_price} -> #{new_price}"
         end
       rescue => e
