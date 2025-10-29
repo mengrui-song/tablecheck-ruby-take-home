@@ -1,43 +1,43 @@
 namespace :db do
-  desc "Seed data for last week to test dynamic pricing"
+  desc "Seed data for past 2 weeks to test dynamic pricing"
   task seed_last_week: :environment do
-    puts "Creating seed data for last week..."
+    puts "Creating seed data for past 2 weeks..."
 
-    # Check if products exist
-    if Product.count == 0
-      puts "❌ No products found. Please run 'rake products:import' first to import products from inventory.csv"
-      exit 1
-    end
 
     # Clear existing orders and users only
     puts "Clearing existing orders and users..."
+    Product.destroy_all
     Order.destroy_all
     User.destroy_all
 
-    # Create users
-    puts "Creating users..."
-    users = [
-      User.create!(name: "John Doe", email: "john@example.com"),
-      User.create!(name: "Jane Smith", email: "jane@example.com"),
-      User.create!(name: "Bob Wilson", email: "bob@example.com"),
-      User.create!(name: "Alice Brown", email: "alice@example.com"),
-      User.create!(name: "Charlie Davis", email: "charlie@example.com")
-    ]
+    # import products first
+    Rake::Task["products:import"].invoke
+    puts "Products imported. Total products: #{Product.count}"
+
+    # Create 100 users
+    puts "Creating 100 users..."
+    users = []
+    100.times do |i|
+      users << User.create!(
+        name: "User #{i + 1}",
+        email: "user#{i + 1}@example.com"
+      )
+    end
 
     # Get existing products
     products = Product.all.to_a
     puts "Using #{products.count} existing products..."
 
-    # Create orders from last week (7 days ago to 1 day ago)
-    puts "Creating orders from last week..."
+    # Create orders from past month (30 days ago to today)
+    puts "Creating orders from past 2 weeks..."
 
-    one_week_ago = 7.days.ago
-    yesterday = 1.day.ago
+    two_weeks_ago = 14.days.ago
+    today = Date.current
 
-    # Generate random orders for each day of last week
-    (one_week_ago.to_date..yesterday.to_date).each do |date|
-      # Create 3-8 orders per day
-      orders_per_day = rand(3..8)
+    # Generate random orders for each day of the past 2 weeks
+    (two_weeks_ago.to_date..today).each do |date|
+      # Create 10-50 orders per day (more volume for better testing)
+      orders_per_day = rand(10..50)
 
       orders_per_day.times do
         user = users.sample
@@ -51,11 +51,11 @@ namespace :db do
         order.total_price = 0
         order.save!
 
-        # Add 1-4 items to each order
-        items_count = rand(1..4)
+        # Add 1-30 items to each order
+        items_count = rand(1..30)
         items_count.times do
           product = products.sample
-          quantity = rand(1..3)
+          quantity = rand(1..4)
           price = product.current_price
 
           order_item = order.order_items.create!(
@@ -81,11 +81,16 @@ namespace :db do
     puts "Products: #{Product.count}"
     puts "Orders: #{Order.count}"
     puts "Order Items: #{OrderItem.count}"
-    puts "Orders from last week: #{Order.where(created_at: one_week_ago..yesterday).count}"
+
+    # Show weekly breakdown
+    current_week = Date.current.beginning_of_week..Date.current.end_of_week
+    previous_week = 1.week.ago.beginning_of_week..1.week.ago.end_of_week
+    puts "Orders in current week: #{Order.where(created_at: current_week).count}"
+    puts "Orders in previous week: #{Order.where(created_at: previous_week).count}"
 
     # Show some sample data
-    puts "\n📊 Sample orders from last week:"
-    Order.where(created_at: one_week_ago..yesterday).limit(5).each do |order|
+    puts "\n📊 Sample recent orders:"
+    Order.where(created_at: 3.days.ago..today).limit(5).each do |order|
       puts "Order #{order.id}: #{order.user.name} - ￥#{order.total_price} - #{order.created_at.strftime('%Y-%m-%d %H:%M')}"
     end
   end
