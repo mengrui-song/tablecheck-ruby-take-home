@@ -29,7 +29,23 @@ namespace :products do
           puts "Skipping invalid product: #{attrs[:NAME]} (#{e.message})"
         end
       else
-        puts "Product already exists, skipping: #{product.name}"
+        # Check if QTY or DEFAULT_PRICE have changed
+        new_quantity = attrs[:QTY].to_i
+        new_default_price = attrs[:DEFAULT_PRICE]
+
+        if product.quantity != new_quantity || product.default_price != new_default_price
+          product.quantity = new_quantity
+          product.default_price = new_default_price
+
+          begin
+            product.save!
+            puts "Updated product: #{product.name} (quantity: #{new_quantity}, price: #{new_default_price})"
+          rescue Mongoid::Errors::Validations => e
+            puts "Failed to update product: #{attrs[:NAME]} (#{e.message})"
+          end
+        else
+          puts "Product already exists with same values, skipping: #{product.name}"
+        end
       end
     end
 
