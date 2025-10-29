@@ -124,6 +124,63 @@ RSpec.describe Order, type: :model do
       expect(product.quantity).to eq(1) # Inventory should remain unchanged
     end
 
+    context 'when inventory is insufficient ' do
+      it 'marks order as failed and does not change inventory' do
+        product.update!(quantity: 1) # Less than cart quantity (2)
+
+        expect { order.place!(cart) }.to raise_error("Not enough inventory for #{product.name}")
+
+        # Order should be marked as failed
+        order.reload
+        expect(order.status).to eq('failed')
+
+        # Inventory should remain unchanged
+        product.reload
+        expect(product.quantity).to eq(1)
+
+        # No order items should be created
+        expect(order.order_items.count).to eq(0)
+      end
+    end
+
+    context 'when order placement is interrupted (Scenario 1)' do
+      it 'can create pending orders that need cleanup' do
+        # This simulates a scenario where order placement succeeded
+        # but payment failed or system crashed before completion
+
+        # Create order manually in pending state with expiration
+        pending_order = Order.create!(
+          user: user,
+          status: 'pending',
+          expires_at: 16.minutes.ago, # Expired
+          total_price: 200
+        )
+
+        # Create order items to simulate inventory was already reduced
+        pending_order.order_items.create!(
+          product: product,
+          quantity: 2,
+          price: 100
+        )
+
+        # Simulate inventory was reduced when order was placed
+        original_quantity = product.quantity
+        product.update!(quantity: original_quantity - 2)
+
+        expect(pending_order.expired?).to be true
+        expect(pending_order.status).to eq('pending')
+
+        # Cleanup should restore inventory and mark as expired
+        Order.cleanup_expired!
+
+        pending_order.reload
+        product.reload
+
+        expect(pending_order.status).to eq('expired')
+        expect(product.quantity).to eq(original_quantity) # Inventory restored
+      end
+    end
+
     it 'handles multiple products in cart' do
       product2 = Product.create!(name: 'Product 2', category: 'Test', default_price: 50, quantity: 5)
       cart.update_product(product2.id.to_s, 1)
