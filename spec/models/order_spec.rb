@@ -242,7 +242,6 @@ RSpec.describe Order, type: :model do
       order.place!(cart)
 
       # Should be set to 15 minutes from "now"
-      expected_expiration = Time.parse("2023-01-01 12:15:00")
       expect(order.expires_at).to be_nil # Expiration is cleared when order is paid
       expect(order.status).to eq("paid")
     end
