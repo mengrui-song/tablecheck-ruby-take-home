@@ -71,6 +71,9 @@ class CartItemsController < ApplicationController
     cart_item = @cart.cart_items.find(params[:id])
     cart_item.destroy
 
+    # update the cart after item removal
+    @cart.reload
+
     render json: {
       message: "Item removed from cart",
       cart: cart_json(@cart),
