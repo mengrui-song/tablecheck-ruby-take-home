@@ -1,5 +1,33 @@
 # TableCheck Ruby Take-Home
 
+## Table of Contents
+
+1. [Overview](#1-overview)
+2. [Architecture & Key Components](#2-architecture--key-components)
+   - 2.1 [Project Structure](#21-project-structure)
+   - 2.2 [System Components](#22-system-components)
+   - 2.3 [Dynamic Pricing Logic](#23-dynamic-pricing-logic)
+   - 2.4 [Background Processing](#24-background-processing)
+3. [Setup and Installation](#3-setup-and-installation)
+   - 3.1 [Prerequisites](#31-prerequisites)
+   - 3.2 [Installation Steps](#32-installation-steps)
+4. [Running the Application](#4-running-the-application)
+5. [Running Tests](#5-running-tests)
+6. [API Reference](#6-api-reference)
+   - 6.1 [Endpoints](#61-endpoints)
+   - 6.2 [Notes](#62-notes)
+7. [Example Postman Workflow](#7-example-postman-workflow)
+   - 7.1 [How to Test the App Manually](#71-how-to-test-the-app-manually)
+   - 7.2 [Detailed Steps](#72-detailed-steps)
+8. [Troubleshooting](#8-troubleshooting)
+9. [Dynamic Pricing Business Logic](#9-dynamic-pricing-business-logic)
+   - 9.1 [Overview](#91-overview)
+   - 9.2 [Demand-Based Adjustment](#92-demand-based-adjustment)
+   - 9.3 [Inventory-Based Adjustment](#93-inventory-based-adjustment)
+   - 9.4 [Competitor-Based Adjustment](#94-competitor-based-adjustment)
+   - 9.5 [Price Boundaries & Automation](#95-price-boundaries--automation)
+10. [Future Improvements](#10-future-improvements)
+
 ## 1. Overview
 
 - **Project summary**: A simple e-commerce platform with a dynamic pricing engine that adjusts product prices in real-time based on demand, inventory levels, and competitor prices.
@@ -8,6 +36,7 @@
 
 ## 2. Architecture & Key Components
 
+### 2.1 Project Structure
 - `app/` — Rails application code (models, controllers, services, jobs)
   - `controllers/` — API endpoints (products, carts, orders)
   - `models/` — Data models (Product, Cart, Order, User)
@@ -19,15 +48,13 @@
 - `lib/tasks/` — Rake tasks for product import and data seeding
 - `docker-compose.yml` — Multi-container setup (app, MongoDB, Sidekiq)
 
-**System Components:**
-
+### 2.2 System Components
 - **Products**: Core catalog with dynamic pricing (default_price, dynamic_price, inventory tracking)
 - **Cart**: User shopping cart with cart items that validates inventory before adding products
 - **Orders**: Purchase records that atomically reduce inventory and create order items with locked-in prices
 - **Dynamic Pricing**: Multi-factor pricing engine that adjusts prices based on demand patterns, inventory levels, and competitor data
 
-**Dynamic Pricing Logic:**
-
+### 2.3 Dynamic Pricing Logic
 The system automatically adjusts prices using a 4-step process:
 
 1. **Demand Analysis** - Compares current vs previous week activity (purchases + carts)
@@ -35,10 +62,9 @@ The system automatically adjusts prices using a 4-step process:
 3. **Competitor Matching** - Aligns with external pricing data when available
 4. **Boundary Control** - Caps final price between 80%-150% of default price
 
-_For detailed business rules, see the Dynamic Pricing section below._
+_For detailed business rules, see the [Dynamic Pricing Business Logic](#9-dynamic-pricing-business-logic) below._
 
-**Background Processing:**
-
+### 2.4 Background Processing
 - **PriceUpdateJob**: Sidekiq job that periodically recalculates all product prices using demand analysis, inventory levels, and external competitor pricing API
 
 **Flow**: User adds products to cart → Places order (inventory reduced, prices locked) → Background job analyzes demand and updates dynamic prices for future purchases
@@ -72,14 +98,13 @@ graph TD
 
 ## 3. Setup and Installation
 
-### Prerequisites
-
+### 3.1 Prerequisites
 - Ruby 3.3.5
 - Bundler (`gem install bundler`)
 - MongoDB
 - Docker
 
-### Installation Steps
+### 3.2 Installation Steps
 
 1. **Clone repository**
 
@@ -160,10 +185,9 @@ bundle exec rubocop
 ## 6. API Reference
 
 ### Base URL
-
 `http://localhost:3000`
 
-### Endpoints
+### 6.1 Endpoints
 
 #### 1. Products
 
@@ -209,15 +233,14 @@ bundle exec rubocop
   ```
 - **Verify updated prices**: `GET /products/{id}` (check dynamic_price field)
 
-### Notes
-
+### 6.2 Notes
 - **Product IDs**: MongoDB ObjectIds (24-character hex strings)
 - **Currency**: Japanese Yen (¥) as whole numbers
 - **Authentication**: Simplified with `user_id` parameter
 
 ## 7. Example Postman Workflow
 
-### How to Test the App Manually
+### 7.1 How to Test the App Manually
 
 1. **Import products**: Start app (products auto-import from CSV)
 2. **Add to cart**: Add products with inventory validation
@@ -225,7 +248,7 @@ bundle exec rubocop
 4. **Trigger price job**: Run dynamic pricing calculation
 5. **Verify updates**: Check if prices changed based on demand
 
-### Detailed Steps
+### 7.2 Detailed Steps
 
 > **Note**: Replace `{product1_id}`, `{product2_id}`, and other placeholders with actual values from your product list. Use the "List All Products" endpoint to get available products and their details.
 
@@ -401,21 +424,21 @@ bundle exec rubocop
 
 ## 9. Dynamic Pricing Business Logic
 
-### Overview
+### 9.1 Overview
 This system automatically adjusts product prices based on demand trends, inventory levels, and competitor prices, while maintaining profitability and market competitiveness.
 
-### 1. Demand-Based Adjustment
+### 9.2 Demand-Based Adjustment
 - **Data Requirement**: Minimum 10 transactions per week (insufficient data = no price change)
 - **Growth Calculation**: Compares current week vs previous week demand (purchases + cart additions)
 - **Weighted Scoring**: Purchase growth weighted more heavily than cart additions
 - **Price Tier Weighting**:
   - Low-priced items → purchases 80%, carts 20%
-  - High-priced items → purchases 40%, carts 60%  
+  - High-priced items → purchases 40%, carts 60%
   - Premium items → purchases 50%, carts 50%
 - **Price Multipliers**: Strong growth = up to +50%, strong decline = up to -25%
 - **Smoothing**: Limits changes to ±15% per adjustment, overall 0.7x to 1.5x original
 
-### 2. Inventory-Based Adjustment
+### 9.3 Inventory-Based Adjustment
 - **Low stock** (≤50 units) → +30% increase
 - **High stock** (>250 units) → -10% discount
 - **Category Modifiers**:
@@ -424,13 +447,13 @@ This system automatically adjusts product prices based on demand trends, invento
   - Clothing → neutral baseline
 - **Skip Conditions**: Stable demand (multiplier = 1.0) or missing stock data
 
-### 3. Competitor-Based Adjustment
+### 9.4 Competitor-Based Adjustment
 - **Price too high** (>10% above competitor) → reduce to within 20% of competitor
 - **Price too low** (>5% below competitor) → increase up to 5%
 - **Competitive range** (±5-10%) → no change
 - **Goal**: Competitive alignment without price wars
 
-### 4. Price Boundaries & Automation
+### 9.5 Price Boundaries & Automation
 - **Final Bounds**: 80% to 150% of default price
 - **Currency**: Whole yen (¥) values only
 - **Schedule**: Weekly Sidekiq job, Mondays at 9:00 AM
