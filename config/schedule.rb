@@ -5,6 +5,12 @@
 # Only schedule in production environment
 if Rails.env.production?
   Sidekiq::Cron::Job.create(
+    name: "Order Cleanup Job",
+    cron: "* * * * *", # Every minute
+    class: "OrderCleanupJob"
+  )
+
+  Sidekiq::Cron::Job.create(
     name: "Weekly Price Update Job",
     cron: "0 9 * * 1", # Every Monday at 9:00 AM
     class: "PriceUpdateJob"

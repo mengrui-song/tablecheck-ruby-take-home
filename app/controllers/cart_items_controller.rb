@@ -9,7 +9,6 @@ class CartItemsController < ApplicationController
     product = Product.find(params[:product_id])
     quantity = params[:quantity]&.to_i || 0
 
-    # TODO: The inventory check and cart update are not atomic.
     if quantity > 0 && product.quantity < quantity
       render json: {
         error: "Not enough inventory available for #{product.name}",
@@ -71,6 +70,9 @@ class CartItemsController < ApplicationController
   def destroy
     cart_item = @cart.cart_items.find(params[:id])
     cart_item.destroy
+
+    # update the cart after item removal
+    @cart.reload
 
     render json: {
       message: "Item removed from cart",
