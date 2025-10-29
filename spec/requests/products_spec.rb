@@ -19,7 +19,7 @@ RSpec.describe "Products", type: :request do
       item = body.find { |p| p["id"] == product1.id.to_s }
       expect(item["name"]).to eq(product1.name)
       expect(item["category"]).to eq(product1.category)
-      expect(item["price"]).to eq(product1.current_price)
+      expect(item["dynamic_price"]).to eq(product1.current_price)
       expect(item["quantity"]).to eq(product1.quantity)
     end
   end
@@ -35,7 +35,7 @@ RSpec.describe "Products", type: :request do
       expect(body["id"]).to eq(product.id.to_s)
       expect(body["name"]).to eq(product.name)
       expect(body["category"]).to eq(product.category)
-      expect(body["price"]).to eq(product.current_price)
+      expect(body["dynamic_price"]).to eq(product.current_price)
       expect(body["quantity"]).to eq(product.quantity)
     end
 
