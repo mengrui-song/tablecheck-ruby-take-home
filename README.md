@@ -120,10 +120,14 @@ graph TD
    ```
 
 3. **Set up environment variables**
+
+   Copy the example environment file and configure the required settings:
+
    ```bash
    cp .env.example .env
    ```
-   Fill in required secrets in the `.env` file.
+
+   Edit the `.env` file with the appropriate values. For API keys and configuration details, please refer to the [project documentation](https://docs.google.com/document/d/1cZEvCrywW8YNzLYtFU24rheLlntJy61668qkOCasIQY/edit?usp=sharing).
 
 ## 4. Running the Application
 
@@ -145,9 +149,12 @@ docker compose exec app rails c
 docker compose build app
 ```
 
-**Note:** Products will automatically import from `data/inventory.csv` on startup. If CSV has different quantities/prices than database, existing products will be updated.
+**Note:** Products are automatically imported from `data/inventory.csv` during startup. If the CSV contains different quantities or prices than those in the database, existing products will be updated accordingly.
 
-**Import the csv manually:**
+**Manual CSV import:**
+
+To manually import or refresh product data:
+
 ```bash
 docker compose exec app rails products:import
 ```
@@ -158,7 +165,7 @@ docker compose exec app rails products:import
 # Competitor Pricing API Configuration
 COMPETITOR_API_BASE_URL=https://sinatra-pricing-api.fly.dev
 COMPETITOR_API_KEY=your_api_key_here
-REDIS_URL=redis://localhost:6379/0
+REDIS_URL=redis://redis:6379/0
 ```
 
 ## 5. Running Tests
