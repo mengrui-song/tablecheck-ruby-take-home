@@ -61,8 +61,8 @@ RSpec.describe Order, type: :model do
 
     it 'allows setting and getting total_price' do
       order = Order.new(user: user)
-      order.total_price = 250.50
-      expect(order.total_price).to eq(250.50)
+      order.total_price = 250
+      expect(order.total_price).to eq(250)
     end
   end
 
@@ -73,7 +73,7 @@ RSpec.describe Order, type: :model do
     let(:order) { user.orders.new }
 
     before do
-      cart.add_product(product.id.to_s, 2)
+      cart.update_product(product.id.to_s, 2)
     end
 
     it 'successfully places an order' do
@@ -126,7 +126,7 @@ RSpec.describe Order, type: :model do
 
     it 'handles multiple products in cart' do
       product2 = Product.create!(name: 'Product 2', category: 'Test', default_price: 50, quantity: 5)
-      cart.add_product(product2.id.to_s, 1)
+      cart.update_product(product2.id.to_s, 1)
 
       order.place!(cart)
 

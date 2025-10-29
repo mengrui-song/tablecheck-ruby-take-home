@@ -6,7 +6,7 @@ class Order
   has_many :order_items, dependent: :destroy
 
   field :status, type: String, default: "pending" # pending, paid
-  field :total_price, type: Float
+  field :total_price, type: Integer, default: 0
 
   validates :status, inclusion: { in: %w[pending paid] }
 
@@ -18,7 +18,6 @@ class Order
     cart.cart_items.each do |cart_item|
       product = cart_item.product
       # TODO lock product for update
-      product.reload
       if product.quantity < cart_item.quantity
         raise "Not enough inventory for #{product.name}"
       end
