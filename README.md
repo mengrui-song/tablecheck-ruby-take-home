@@ -19,10 +19,13 @@
    - 6.2 [Cart Management](#62-cart-management)
    - 6.3 [Orders](#63-orders)
 7. [Example Postman Workflow](#7-example-postman-workflow)
-   - 7.1 [How to Test the App Manually](#71-how-to-test-the-app-manually)
-   - 7.2 [Detailed Steps](#72-detailed-steps)
-   - 7.3 [Testing Race Condition Prevention](#73-testing-race-condition-prevention)
-8. [Troubleshooting](#8-troubleshooting)
+   - 7.1 [Preparation](#71-preparation)
+   - 7.2 [Product Management](#72-product-management)
+   - 7.3 [Cart and Order Management](#73-cart-and-order-management)
+   - 7.4 [Testing Inventory Rollback on Failed Orders](#74-testing-inventory-rollback-on-failed-orders)
+   - 7.5 [Dynamic Pricing](#75-dynamic-pricing)
+   - 7.6 [Testing Race Condition Prevention](#76-testing-race-condition-prevention)
+can8. [Troubleshooting](#8-troubleshooting)
 9. [Dynamic Pricing Business Logic](#9-dynamic-pricing-business-logic)
    - 9.1 [Overview](#91-overview)
    - 9.2 [Demand-Based Adjustment](#92-demand-based-adjustment)
@@ -96,6 +99,12 @@ _For detailed business rules, see the [Dynamic Pricing Business Logic](#9-dynami
 - **Solution**: MongoDB's `find_one_and_update` with conditional filters ensures only one transaction succeeds
 - **Implementation**: Inventory check and decrement happen atomically in a single database operation
 
+#### Inventory Rollback Protection
+
+- **Problem**: Partial order failure could leave some items with reduced inventory while others fail
+- **Solution**: Track processed items and rollback all inventory changes if any item fails
+- **Implementation**: Failed orders restore all previously decremented inventory and save order as "failed" status
+
 #### Order Expiration System
 
 - **15-Minute Window**: Orders expire 15 minutes after placement if not completed
@@ -108,25 +117,34 @@ _For detailed business rules, see the [Dynamic Pricing Business Logic](#9-dynami
 ```mermaid
 graph TD
     A[User Places Order] --> B[Status: PENDING<br/>⏰ expires_at = 15min]
-    
-    B --> C{Atomic Inventory Check<br/>find_one_and_update}
-    
-    C -->|❌ Insufficient Stock| D[Status: FAILED<br/>💾 No Inventory Change<br/>🚫 Raise Exception]
-    
-    C -->|✅ Stock Available| E[📦 Inventory Reduced<br/>📝 Create Order Items]
-    
-    E --> F[Status: PAID<br/>✅ Order Complete<br/>⏰ expires_at = nil]
-    
-    B -->|⏰ 15min Timeout<br/>No Payment| G[OrderCleanupJob<br/>Runs Every Minute]
-    
-    G --> H[Status: EXPIRED<br/>↩️ Restore Inventory]
-    
+
+    B --> C{Process Cart Items<br/>One by One}
+
+    C --> D{Item 1: Atomic Check<br/>find_one_and_update}
+
+    D -->|❌ Insufficient Stock| E[Status: FAILED<br/>💾 No Inventory Change<br/>🚫 Raise Exception]
+
+    D -->|✅ Stock Available| F[📦 Item 1 Inventory Reduced<br/>📝 Track for Rollback]
+
+    F --> G{Item 2: Atomic Check<br/>find_one_and_update}
+
+    G -->|❌ Insufficient Stock| H[↩️ Rollback Item 1 Inventory<br/>Status: FAILED<br/>🚫 Raise Exception]
+
+    G -->|✅ Stock Available| I[📦 All Items Processed<br/>📝 Create Order Items]
+
+    I --> J[Status: PAID<br/>✅ Order Complete<br/>⏰ expires_at = nil]
+
+    B -->|⏰ 15min Timeout<br/>No Payment| K[OrderCleanupJob<br/>Runs Every Minute]
+
+    K --> L[Status: EXPIRED<br/>↩️ Restore Inventory]
+
     %% Styling
-    style F fill:#90EE90,stroke:#333,stroke-width:2px
-    style D fill:#FFB6C1,stroke:#333,stroke-width:2px  
-    style H fill:#FFA500,stroke:#333,stroke-width:2px
+    style J fill:#90EE90,stroke:#333,stroke-width:2px
+    style E fill:#FFB6C1,stroke:#333,stroke-width:2px
+    style H fill:#FFB6C1,stroke:#333,stroke-width:2px
+    style L fill:#FFA500,stroke:#333,stroke-width:2px
     style B fill:#FFFF99,stroke:#333,stroke-width:2px
-    style G fill:#87CEEB,stroke:#333,stroke-width:2px
+    style K fill:#87CEEB,stroke:#333,stroke-width:2px
 ```
 
 ## 3. Setup and Installation
@@ -430,7 +448,99 @@ product2 = Product.second
 - **URL**: `http://localhost:3000/products/{product2_id}`
 - **Expected**: Product2 quantity should be reduced by the ordered amount
 
-### 7.4. Dynamic Pricing
+### 7.4 Testing Inventory Rollback on Failed Orders
+
+**Scenario**: Test that inventory is properly rolled back when an order fails due to insufficient stock
+
+**1. Prepare Test Data**
+
+```bash
+docker compose run app rails c
+```
+
+```ruby
+# Create a test user
+user = User.create!(email: "rollback_test@example.com", name: "Rollback Test User")
+
+# Set up products with specific quantities
+product1 = Product.first
+product2 = Product.second
+product1.update!(quantity: 10)  # Sufficient inventory
+product2.update!(quantity: 5)   # Limited inventory
+
+puts "Initial inventory - Product1: #{product1.quantity}, Product2: #{product2.quantity}"
+```
+
+**2. Add Items to Cart Successfully**
+
+- **Method**: POST
+- **URL**: `http://localhost:3000/cart/items`
+- **Body**:
+  ```json
+  {
+    "product_id": "{product1_id}",
+    "quantity": 8,
+    "user_id": "{user_id}"
+  }
+  ```
+
+- **Method**: POST
+- **URL**: `http://localhost:3000/cart/items`
+- **Body**:
+  ```json
+  {
+    "product_id": "{product2_id}",
+    "quantity": 5,
+    "user_id": "{user_id}"
+  }
+  ```
+
+**3. Simulate Inventory Reduction**
+
+```ruby
+# Reduce product2 inventory to less than cart quantity
+product2.update!(quantity: 3)  # Cart has 5 but only 3 available
+puts "Updated inventory - Product1: #{product1.reload.quantity}, Product2: #{product2.reload.quantity}"
+```
+
+**4. Attempt Order Placement**
+
+- **Method**: POST
+- **URL**: `http://localhost:3000/orders`
+- **Body**:
+  ```json
+  {
+    "user_id": "{user_id}"
+  }
+  ```
+
+**5. Expected Results**
+
+- ❌ **Order fails** with error: "Not enough inventory for Product2. Available: 3, Requested: 5"
+- ✅ **Product1 inventory unchanged**: Still 10 (rollback successful)
+- ✅ **Product2 inventory unchanged**: Still 3 (no deduction on failed order)
+- ✅ **Cart items preserved**: User can modify cart and retry
+- 📝 **Failed order saved**: User has 1 order with status "failed" in order history
+
+**6. Verification**
+
+```ruby
+# Check inventory - should be unchanged
+product1.reload.quantity  # Expected: 10
+product2.reload.quantity  # Expected: 3
+
+# Check user's order history
+user.orders.where(status: "failed").count  # Expected: 1
+failed_order = user.orders.where(status: "failed").first
+puts "Failed order status: #{failed_order.status}"
+
+# Check cart still has items
+user.cart.cart_items.count  # Expected: 2
+```
+
+This test demonstrates the atomic order processing with proper inventory rollback, ensuring no partial inventory changes occur when orders fail.
+
+### 7.5. Dynamic Pricing
 
 **1. Run Seed to Create Order Histories**
 
@@ -450,7 +560,7 @@ You can check the prices are updated by running the following job.
 
 
 
-### 7.5 Testing Race Condition Prevention
+### 7.6 Testing Race Condition Prevention
 
 **Scenario**: Test concurrent purchase attempts on limited inventory
 
