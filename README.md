@@ -25,7 +25,7 @@
    - 7.4 [Testing Inventory Rollback on Failed Orders](#74-testing-inventory-rollback-on-failed-orders)
    - 7.5 [Dynamic Pricing](#75-dynamic-pricing)
    - 7.6 [Testing Race Condition Prevention](#76-testing-race-condition-prevention)
-can8. [Troubleshooting](#8-troubleshooting)
+8. [Troubleshooting](#8-troubleshooting)
 9. [Dynamic Pricing Business Logic](#9-dynamic-pricing-business-logic)
    - 9.1 [Overview](#91-overview)
    - 9.2 [Demand-Based Adjustment](#92-demand-based-adjustment)
