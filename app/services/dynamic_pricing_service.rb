@@ -29,14 +29,6 @@ class DynamicPricingService
     final_price
   end
 
-  def self.update_all_prices
-    Product.all.each do |product|
-      new(product).calculate_dynamic_price
-    rescue => e
-      Rails.logger.error "Failed to update price for product #{product.id}: #{e.message}"
-    end
-  end
-
   private
 
   def demand_calculator
