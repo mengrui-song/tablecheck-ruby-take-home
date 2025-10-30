@@ -56,6 +56,14 @@ RSpec.describe "Purchase Flow", type: :request do
       get "/orders/#{order_id}", params: { user_id: user_id }
       expect(response).to have_http_status(:success)
       expect(JSON.parse(response.body)["order"]["id"]).to eq(order_id)
+
+      # Step 9: Verify successful order was saved with paid status
+      user = User.find(user_id)
+      paid_orders = user.orders.where(status: "paid")
+      expect(paid_orders.count).to eq(1)
+      paid_order = paid_orders.first
+      expect(paid_order.status).to eq("paid")
+      expect(paid_order.id.to_s).to eq(order_id)
     end
 
     it "prevents purchase when insufficient inventory" do
@@ -171,6 +179,91 @@ RSpec.describe "Purchase Flow", type: :request do
         status: "expired"
       )
       expect(order).to be_valid
+    end
+
+    it "prevents order placement when inventory becomes insufficient after items added to cart, the second item fails first" do
+      # Add items to cart when inventory is sufficient
+      post "/cart/items", params: { user_id: user_id, product_id: product1.id, quantity: 5 }
+      expect(response).to have_http_status(:success)
+
+      post "/cart/items", params: { user_id: user_id, product_id: product2.id, quantity: 3 }
+      expect(response).to have_http_status(:success)
+
+      # Verify cart contains items
+      get "/cart", params: { user_id: user_id }
+      expect(response).to have_http_status(:success)
+      cart_data = JSON.parse(response.body)
+      expect(cart_data["cart"]["items"].size).to eq(2)
+
+      # Simulate inventory reduction (e.g., another order, admin adjustment)
+      product2.update!(quantity: 2) # Reduce from 3 to 2, but cart has 3
+
+      # Attempt to place order - should fail due to insufficient inventory
+      post "/orders", params: { user_id: user_id }
+      expect(response).to have_http_status(:unprocessable_entity)
+      order_error = JSON.parse(response.body)
+      expect(order_error["error"]).to include("Not enough inventory for Test Product 2")
+
+      # Verify cart still contains items (order failed)
+      get "/cart", params: { user_id: user_id }
+      expect(response).to have_http_status(:success)
+      cart_data = JSON.parse(response.body)
+      expect(cart_data["cart"]["items"].size).to eq(2)
+
+      # Verify inventory unchanged (no deduction on failed order)
+      product1.reload
+      product2.reload
+      expect(product1.quantity).to eq(5) # Original quantity
+      expect(product2.quantity).to eq(2) # Reduced quantity but no further change
+
+      # Verify failed order was created and saved with failed status
+      user = User.find(user_id)
+      failed_orders = user.orders.where(status: "failed")
+      expect(failed_orders.count).to eq(1)
+      failed_order = failed_orders.first
+      expect(failed_order.status).to eq("failed")
+    end
+    it "prevents order placement when inventory becomes insufficient after items added to cart, the first item fails first" do
+      # Add items to cart when inventory is sufficient
+      post "/cart/items", params: { user_id: user_id, product_id: product1.id, quantity: 5 }
+      expect(response).to have_http_status(:success)
+
+      post "/cart/items", params: { user_id: user_id, product_id: product2.id, quantity: 3 }
+      expect(response).to have_http_status(:success)
+
+      # Verify cart contains items
+      get "/cart", params: { user_id: user_id }
+      expect(response).to have_http_status(:success)
+      cart_data = JSON.parse(response.body)
+      expect(cart_data["cart"]["items"].size).to eq(2)
+
+      # Simulate inventory reduction (e.g., another order, admin adjustment)
+      product1.update!(quantity: 2) # Reduce from 5 to 2, but cart has 5
+
+      # Attempt to place order - should fail due to insufficient inventory
+      post "/orders", params: { user_id: user_id }
+      expect(response).to have_http_status(:unprocessable_entity)
+      order_error = JSON.parse(response.body)
+      expect(order_error["error"]).to include("Not enough inventory for Test Product 1")
+
+      # Verify cart still contains items (order failed)
+      get "/cart", params: { user_id: user_id }
+      expect(response).to have_http_status(:success)
+      cart_data = JSON.parse(response.body)
+      expect(cart_data["cart"]["items"].size).to eq(2)
+
+      # Verify inventory unchanged (no deduction on failed order)
+      product1.reload
+      product2.reload
+      expect(product1.quantity).to eq(2) # Original quantity
+      expect(product2.quantity).to eq(3) # Original quantity
+
+      # Verify failed order was created and saved with failed status
+      user = User.find(user_id)
+      failed_orders = user.orders.where(status: "failed")
+      expect(failed_orders.count).to eq(1)
+      failed_order = failed_orders.first
+      expect(failed_order.status).to eq("failed")
     end
   end
 end

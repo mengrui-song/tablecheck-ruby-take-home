@@ -26,21 +26,6 @@ class OrdersController < ApplicationController
       return
     end
 
-    # Check inventory for all items before creating order
-    cart.cart_items.each do |cart_item|
-      product = cart_item.product
-      if !product
-        render json: { error: "Product not found for cart item" }, status: :unprocessable_entity
-        return
-      end
-
-      if product.quantity < cart_item.quantity
-        render json: {
-          error: "Not enough inventory for #{product.name}. Available: #{product.quantity}, Requested: #{cart_item.quantity}"
-        }, status: :unprocessable_entity
-        return
-      end
-    end
 
     # Create and place the order
     order = @user.orders.build
