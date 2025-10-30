@@ -68,8 +68,8 @@ class Order
       self.status = "paid"
       self.expires_at = nil
       save!
-    # Clear cart
-    cart.cart_items.destroy_all
+      # Clear cart
+      cart.cart_items.destroy_all
 
     rescue => e
       # If any error occurs, ensure rollback happens
