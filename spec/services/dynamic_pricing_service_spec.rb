@@ -208,7 +208,6 @@ end
 
 # Integration tests with real calculator logic
 RSpec.describe DynamicPricingService, 'Integration Tests', type: :service do
-
   describe 'Private method memoization' do
     let(:product) do
       Product.create!(
