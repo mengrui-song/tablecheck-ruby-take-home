@@ -118,7 +118,7 @@ RSpec.describe Order, type: :model do
     it 'raise error if user has product in cart when product quantity is updated' do
       product.update!(quantity: 1)
 
-      expect { order.place!(cart) }.to raise_error("Not enough inventory for #{product.name}")
+      expect { order.place!(cart) }.to raise_error("Not enough inventory for #{product.name}. Available: 1, Requested: 2")
 
       product.reload
       expect(product.quantity).to eq(1) # Inventory should remain unchanged
@@ -128,7 +128,7 @@ RSpec.describe Order, type: :model do
       it 'marks order as failed and does not change inventory' do
         product.update!(quantity: 1) # Less than cart quantity (2)
 
-        expect { order.place!(cart) }.to raise_error("Not enough inventory for #{product.name}")
+        expect { order.place!(cart) }.to raise_error("Not enough inventory for #{product.name}. Available: 1, Requested: 2")
 
         # Order should be marked as failed
         order.reload
