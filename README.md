@@ -107,38 +107,26 @@ _For detailed business rules, see the [Dynamic Pricing Business Logic](#9-dynami
 
 ```mermaid
 graph TD
-    A[User A] --> B[Add to Cart]
-    A2[User B] --> B2[Add to Cart]
-
-    B --> C[Create Order - Status: pending]
-    B2 --> C2[Create Order - Status: pending]
-
-    C --> D[Call order.place!]
-    C2 --> D2[Call order.place!]
-
-    D --> E{Atomic Inventory Check & Decrement}
-    D2 --> E2{Atomic Inventory Check & Decrement}
-
-    E -->|✓ Success| F[Reserve Inventory]
-    E -->|✗ Insufficient| G[Mark as failed]
-    E2 -->|✗ Already Reserved| G2[Mark as failed]
-
-    F --> H[Create Order Items]
-    H --> I[Auto-complete: Status = paid]
-
-    G --> J[Raise Exception]
-    G2 --> J2[Raise Exception]
-
-    K[Background: OrderCleanupJob] --> L{Find expired pending orders}
-    L --> M[Restore Inventory + Mark expired]
-
-    N[PriceUpdateJob] --> O[Analyze Demand]
-    O --> P[Update Prices Weekly]
-
-    style I fill:#90EE90,stroke:#333,stroke-width:2px
-    style G fill:#FFB6C1,stroke:#333,stroke-width:2px
-    style G2 fill:#FFB6C1,stroke:#333,stroke-width:2px
-    style K fill:#87CEEB,stroke:#333,stroke-width:2px
+    A[User Places Order] --> B[Status: PENDING<br/>⏰ expires_at = 15min]
+    
+    B --> C{Atomic Inventory Check<br/>find_one_and_update}
+    
+    C -->|❌ Insufficient Stock| D[Status: FAILED<br/>💾 No Inventory Change<br/>🚫 Raise Exception]
+    
+    C -->|✅ Stock Available| E[📦 Inventory Reduced<br/>📝 Create Order Items]
+    
+    E --> F[Status: PAID<br/>✅ Order Complete<br/>⏰ expires_at = nil]
+    
+    B -->|⏰ 15min Timeout<br/>No Payment| G[OrderCleanupJob<br/>Runs Every Minute]
+    
+    G --> H[Status: EXPIRED<br/>↩️ Restore Inventory]
+    
+    %% Styling
+    style F fill:#90EE90,stroke:#333,stroke-width:2px
+    style D fill:#FFB6C1,stroke:#333,stroke-width:2px  
+    style H fill:#FFA500,stroke:#333,stroke-width:2px
+    style B fill:#FFFF99,stroke:#333,stroke-width:2px
+    style G fill:#87CEEB,stroke:#333,stroke-width:2px
 ```
 
 ## 3. Setup and Installation
